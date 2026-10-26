@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Menu bar / tray: single colour on transparent; macOS tints it as a template image. -->
+  <g fill="none" stroke="#000000" stroke-width="80" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M512 90 L850 216 V500 C850 716 706 878 512 950 C318 878 174 716 174 500 V216 Z"/>
+    <circle cx="410" cy="380" r="64" fill="#000000" stroke="none"/>
+    <circle cx="410" cy="700" r="64" fill="#000000" stroke="none"/>
+    <circle cx="640" cy="500" r="64" fill="#000000" stroke="none"/>
+    <path d="M410 444 V636"/>
+    <path d="M640 564 C640 640 540 652 474 676"/>
+  </g>
+</svg>

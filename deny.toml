@@ -1,0 +1,64 @@
+# Supply-chain policy, enforced in CI with `cargo deny check`.
+# GitAssist must never talk to the network, so HTTP/TLS client crates are banned outright.
+
+[graph]
+all-features = false
+# Tauri only depends on reqwest for Android/iOS dev servers; GitAssist ships desktop builds only.
+targets = [
+  "x86_64-unknown-linux-gnu",
+  "aarch64-unknown-linux-gnu",
+  "x86_64-apple-darwin",
+  "aarch64-apple-darwin",
+  "x86_64-pc-windows-msvc",
+  "aarch64-pc-windows-msvc",
+]
+
+[advisories]
+version = 2
+yanked = "deny"
+# Vulnerabilities fail anywhere in the tree. "Unmaintained" notices fail only for
+# crates GitAssist depends on directly: Tauri's Linux GTK / D-Bus stack carries a few
+# (proc-macro-error, zvariant, zbus_names) with no maintained replacement upstream.
+unmaintained = "workspace"
+
+[licenses]
+version = 2
+confidence-threshold = 0.9
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-3-Clause",
+  "ISC",
+  "Zlib",
+  "Unicode-3.0",
+  "MPL-2.0",
+  "CC0-1.0",
+  "0BSD",
+]
+
+[bans]
+multiple-versions = "allow"
+wildcards = "deny"
+allow-wildcard-paths = true
+deny = [
+  { crate = "reqwest", reason = "no network access" },
+  { crate = "hyper", reason = "no network access" },
+  { crate = "h2", reason = "no network access" },
+  { crate = "ureq", reason = "no network access" },
+  { crate = "isahc", reason = "no network access" },
+  { crate = "curl", reason = "no network access" },
+  { crate = "curl-sys", reason = "no network access" },
+  { crate = "surf", reason = "no network access" },
+  { crate = "attohttpc", reason = "no network access" },
+  { crate = "native-tls", reason = "no network access" },
+  { crate = "rustls", reason = "no network access" },
+  { crate = "openssl", reason = "no network access" },
+  { crate = "tokio-tungstenite", reason = "no network access" },
+  { crate = "tungstenite", reason = "no network access" },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

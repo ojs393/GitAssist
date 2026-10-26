@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Windows: full-bleed tile with a thicker mark so 16-32px .ico sizes stay legible. -->
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#4a86ff"/>
+      <stop offset="1" stop-color="#1b48b8"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1024" height="1024" rx="160" fill="url(#g)"/>
+  <g fill="none" stroke="#ffffff" stroke-width="70" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M512 150 L790 254 V496 C790 676 668 810 512 874 C356 810 234 676 234 496 V254 Z"/>
+    <circle cx="420" cy="410" r="54" fill="#ffffff" stroke="none"/>
+    <circle cx="420" cy="670" r="54" fill="#ffffff" stroke="none"/>
+    <circle cx="620" cy="500" r="54" fill="#ffffff" stroke="none"/>
+    <path d="M420 464 V616"/>
+    <path d="M620 554 C620 620 530 630 474 650"/>
+  </g>
+</svg>

@@ -1,0 +1,65 @@
+# Everything needed to build GitAssist on another machine is committed; this
+# keeps out build output, caches, local tooling and anything personal.
+
+# Build output
+/target
+/app/ui/dist
+/app/src-tauri/gen
+/app/src-tauri/binaries
+*.dmg
+*.msi
+*.exe
+*.AppImage
+*.deb
+*.rpm
+
+# Dependencies and caches
+node_modules/
+.npm/
+.pnpm-store/
+.yarn/
+.vite/
+.cache/
+*.tsbuildinfo
+npm-debug.log*
+
+# Local tooling and test output
+.playwright-mcp/
+playwright-report/
+test-results/
+coverage/
+*.profraw
+*.log
+*.orig
+*.rej
+.direnv/
+
+# Editors and OS
+.idea/
+.vscode/
+.fleet/
+.zed/
+*.code-workspace
+*.swp
+*.swo
+*~
+.DS_Store
+._*
+Thumbs.db
+desktop.ini
+
+# Local agent files and secrets
+.cursor/
+.claude/
+CLAUDE.local.md
+*.local.md
+.aider*
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+
+# Internal planning notes (the README is the documentation)
+/docs/

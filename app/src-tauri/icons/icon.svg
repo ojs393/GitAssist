@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- macOS: Apple icon grid, 824x824 body centred on a 1024 canvas, room for the system shadow. -->
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#4a86ff"/>
+      <stop offset="1" stop-color="#1b48b8"/>
+    </linearGradient>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#g)"/>
+  <g transform="translate(512 512) scale(0.92) translate(-512 -512)" fill="none" stroke="#ffffff" stroke-width="54" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M512 236 L720 314 V496 C720 632 628 732 512 780 C396 732 304 632 304 496 V314 Z"/>
+    <circle cx="440" cy="430" r="40" fill="#ffffff" stroke="none"/>
+    <circle cx="440" cy="624" r="40" fill="#ffffff" stroke="none"/>
+    <circle cx="590" cy="500" r="40" fill="#ffffff" stroke="none"/>
+    <path d="M440 470 V584"/>
+    <path d="M590 540 C590 590 520 596 476 612"/>
+  </g>
+</svg>

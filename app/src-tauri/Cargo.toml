@@ -1,0 +1,26 @@
+[package]
+name = "gitassist-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "GitAssist desktop app"
+
+[[bin]]
+name = "gitassist-app"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+gitassist-core = { path = "../../crates/core" }
+gitassist-gateway = { path = "../../crates/gateway" }
+gitassist-setup = { path = "../../crates/setup" }
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-single-instance = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+directories = "6"
