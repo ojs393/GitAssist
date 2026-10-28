@@ -80,6 +80,36 @@ fn hook_scripts_current(paths: &Paths) -> bool {
     })
 }
 
+/// Repos that use their own hooks path (Husky, lefthook, …) and therefore need
+/// an explicit connect before GitAssist can see commits. Shared by the status
+/// report and by `repair` so "Fix all" actually connects them.
+pub fn hooked_repos(paths: &Paths, env: &Env, cfg: &Config, state: &State) -> Vec<RepoStatus> {
+    let mut repo_paths: BTreeSet<String> = cfg.watched_repos.iter().cloned().collect();
+    repo_paths.extend(state.connected_repos.iter().cloned());
+    repo_paths.extend(
+        log::read_recent(&paths.log_file, 500)
+            .into_iter()
+            .map(|e| e.repo)
+            .filter(|r| !r.is_empty() && !repos::in_protected_folder(Path::new(r), &env.home)),
+    );
+    // Repos with their own hooks never run GitAssist's, so they come from the repo list.
+    repo_paths.extend(
+        gitassist_gateway::registry::load(paths)
+            .into_values()
+            .filter(|r| {
+                r.local_hooks_path.is_some()
+                    && !repos::in_protected_folder(Path::new(&r.path), &env.home)
+            })
+            .map(|r| r.path),
+    );
+    repo_paths
+        .iter()
+        .filter(|p| Path::new(p).join(".git").exists())
+        .map(|p| repos::status(Path::new(p)))
+        .filter(|r| r.local_hooks_path.is_some())
+        .collect()
+}
+
 pub fn check(paths: &Paths, env: &Env) -> Report {
     check_with(paths, env, true)
 }
@@ -230,30 +260,7 @@ pub fn check_with(paths: &Paths, env: &Env, probe_shells: bool) -> Report {
         })
         .collect();
 
-    let mut repo_paths: BTreeSet<String> = cfg.watched_repos.iter().cloned().collect();
-    repo_paths.extend(state.connected_repos.iter().cloned());
-    repo_paths.extend(
-        log::read_recent(&paths.log_file, 500)
-            .into_iter()
-            .map(|e| e.repo)
-            .filter(|r| !r.is_empty() && !repos::in_protected_folder(Path::new(r), &env.home)),
-    );
-    // Repos with their own hooks never run GitAssist's, so they come from the repo list.
-    repo_paths.extend(
-        gitassist_gateway::registry::load(paths)
-            .into_values()
-            .filter(|r| {
-                r.local_hooks_path.is_some()
-                    && !repos::in_protected_folder(Path::new(&r.path), &env.home)
-            })
-            .map(|r| r.path),
-    );
-    let repos: Vec<RepoStatus> = repo_paths
-        .iter()
-        .filter(|p| Path::new(p).join(".git").exists())
-        .map(|p| repos::status(Path::new(p)))
-        .filter(|r| r.local_hooks_path.is_some())
-        .collect();
+    let repos = hooked_repos(paths, env, &cfg, &state);
 
     let ok = items
         .iter()
