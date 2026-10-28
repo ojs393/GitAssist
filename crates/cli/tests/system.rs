@@ -51,6 +51,35 @@ fn turn_on_sets_up_everything_in_one_go() {
 }
 
 #[test]
+fn repair_connects_disconnected_hooked_repos() {
+    let s = Sandbox::new();
+    s.init_repo();
+    s.gitassist(&["on"]);
+    fs::create_dir_all(s.repo.join(".husky/_")).unwrap();
+    s.git_ok(&["config", "--local", "core.hooksPath", ".husky/_"]);
+    // Record the repo the same way activity/registry would, so status lists it.
+    let mut cfg = gitassist_core::Config::load(&s.ga.join("config.toml")).unwrap();
+    cfg.watched_repos = vec![s.repo.to_string_lossy().into_owned()];
+    cfg.save_atomic(&s.ga.join("config.toml")).unwrap();
+
+    let before = json(&s);
+    let repos = before["repos"].as_array().unwrap();
+    assert!(
+        repos.iter().any(|r| r["connected"] == false),
+        "expected a disconnected hooked repo: {before}"
+    );
+
+    let o = s.gitassist(&["repair"]);
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stdout));
+    let after = json(&s);
+    let repos = after["repos"].as_array().unwrap();
+    assert!(
+        repos.iter().all(|r| r["connected"] == true),
+        "repair should connect hooked repos: {after}"
+    );
+}
+
+#[test]
 fn heal_restores_what_another_tool_undid() {
     let s = Sandbox::new();
     s.gitassist(&["on"]);

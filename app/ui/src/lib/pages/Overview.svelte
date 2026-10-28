@@ -40,6 +40,37 @@
     report ? report.items.filter((i) => i.state === 'attention').length + installed.filter((a) => a.status !== 'current').length + report.repos.filter((r) => !r.connected).length : 0,
   );
   const name = (p) => p.split(/[\\/]/).filter(Boolean).pop();
+
+  // Fix everything the Overview counts as a problem, then run repair for hooks/shim/login.
+  // Connecting repos here matters: older builds of repair() skipped never-connected ones.
+  async function fixAll() {
+    const snap = report;
+    if (!snap) return api.repair();
+    const errors = [];
+    for (const r of snap.repos.filter((x) => !x.connected)) {
+      try {
+        await api.connectRepo(r.path);
+      } catch (e) {
+        errors.push(`${name(r.path)}: ${e}`);
+      }
+    }
+    for (const a of snap.adapters.filter((x) => x.status !== 'current' && x.status !== 'not_detected')) {
+      try {
+        await api.applyAdapter(a.id);
+      } catch (e) {
+        errors.push(`${a.name}: ${e}`);
+      }
+    }
+    for (const i of snap.items.filter((x) => x.state === 'attention')) {
+      try {
+        await api.install(i.id);
+      } catch (e) {
+        errors.push(`${i.label}: ${e}`);
+      }
+    }
+    await api.repair();
+    if (errors.length) throw new Error(errors.join('; '));
+  }
 </script>
 
 <Setup open={wizard} bind:config {report} onclose={() => (wizard = false)} ondone={() => { wizard = false; refresh(); }} />
@@ -59,7 +90,7 @@
       {#if !report.turned_on}
         <button class="btn primary lg" onclick={() => (wizard = true)}><Icon name="rocket" size={16} /> Set up</button>
       {:else if problems && config.enabled}
-        <ActionButton run={() => api.repair()} label="Fix all" icon="wrench" doneLabel="Fixed" onresult={refresh} />
+        <ActionButton run={fixAll} label="Fix all" icon="wrench" doneLabel="Fixed" onresult={refresh} />
       {/if}
       <button class="icon-btn" title="Check again" aria-label="Check again" onclick={refresh}><Icon name="refresh" size={16} /></button>
     </div>

@@ -288,16 +288,38 @@ pub fn repair(paths: &Paths, env: &Env, cli: &Path, app: Option<&Path>) -> Resul
             autostart::ensure_running(env, app);
         }
     }
-    for r in &state.connected_repos {
-        let p = Path::new(r);
-        if p.exists() && !repos::status(p).connected {
-            let _ = repos::connect(p, paths);
+    // Connect every disconnected hooked repo the status screen would show —
+    // not only ones we already recorded. Otherwise "Fix all" spins green while
+    // the Overview still counts those repos as problems.
+    let cfg = Config::load(&paths.config_file).unwrap_or_default();
+    let state = State::load(&paths.state_file);
+    for r in health::hooked_repos(paths, env, &cfg, &state) {
+        if r.connected {
+            continue;
+        }
+        let p = Path::new(&r.path);
+        if !p.exists() {
+            continue;
+        }
+        if repos::connect(p, paths).is_ok() {
             done.push(format!(
                 "repo {}",
                 p.file_name()
                     .map(|n| n.to_string_lossy().into_owned())
                     .unwrap_or_default()
             ));
+        }
+    }
+    // Re-apply any agent that drifted or was never applied while GitAssist is on.
+    if state.turned_on {
+        for a in adapters::all(env, &cfg).into_iter().filter(|a| a.detected) {
+            if !matches!(
+                adapters::status(&a, paths),
+                Status::Current | Status::NotDetected
+            ) && adapters::apply(&a, paths).is_ok()
+            {
+                done.push(format!("{} rules", a.name));
+            }
         }
     }
     Ok(done)
