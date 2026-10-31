@@ -59,9 +59,9 @@
     }
   }
 
-  // One save at a time. A toggle back to the last saved value cancels the
-  // debounce, and a write that lands after the user moved on is followed
-  // by a write of the live config so the file cannot stay on the old value.
+  // One save at a time. lastSaved is the last write that landed. A failed
+  // correction stays visible: the pill says Not saved until the live config
+  // matches disk or a later write succeeds.
   async function flushSave() {
     if (!config) return;
     if (flight) {
@@ -71,7 +71,7 @@
     const snapshot = JSON.stringify(config);
     if (snapshot === lastSaved) {
       again = false;
-      if (saveState === 'saving') saveState = '';
+      if (saveState === 'saving' || saveState.startsWith('error:')) saveState = '';
       return;
     }
     flight = true;
@@ -79,24 +79,39 @@
     saveState = 'saving';
     try {
       await api.save(JSON.parse(snapshot));
-      let written = snapshot;
-      let now = JSON.stringify(config);
-      if (now !== written) {
-        await api.save(JSON.parse(now));
-        written = now;
-        now = JSON.stringify(config);
+      lastSaved = snapshot;
+      let pending = JSON.stringify(config);
+      while (pending !== lastSaved) {
+        const attempt = pending;
+        try {
+          await api.save(JSON.parse(attempt));
+        } catch (e) {
+          const latest = JSON.stringify(config);
+          if (latest === lastSaved) {
+            saveState = '';
+            return;
+          }
+          if (latest !== attempt) {
+            pending = latest;
+            continue;
+          }
+          saveState = 'error:' + e;
+          return;
+        }
+        lastSaved = attempt;
+        pending = JSON.stringify(config);
       }
-      if (now === written) {
-        lastSaved = written;
-        saveState = 'saved';
-        setTimeout(() => saveState === 'saved' && (saveState = ''), 1800);
-      } else {
-        again = true;
-      }
+      saveState = 'saved';
+      setTimeout(() => saveState === 'saved' && (saveState = ''), 1800);
     } catch (e) {
       const now = config ? JSON.stringify(config) : snapshot;
-      if (now === snapshot) saveState = 'error:' + e;
-      else again = true;
+      if (now === lastSaved) {
+        if (saveState === 'saving') saveState = '';
+      } else if (now !== snapshot) {
+        again = true;
+      } else {
+        saveState = 'error:' + e;
+      }
     } finally {
       flight = false;
       if (again) {
@@ -111,7 +126,7 @@
     const snapshot = JSON.stringify(config);
     clearTimeout(timer);
     if (snapshot === lastSaved) {
-      if (!flight && saveState === 'saving') saveState = '';
+      if (!flight && (saveState === 'saving' || saveState.startsWith('error:'))) saveState = '';
       return;
     }
     saveState = 'saving';
