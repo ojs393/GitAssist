@@ -705,3 +705,214 @@ pre.tpl { margin: 6px 0 0; padding: 8px 10px; background: var(--code); border-ra
   .repo-head > :nth-child(4), .repo-row > :nth-child(4), .repo-open > :nth-child(4),
   .repo-head > :nth-child(5), .repo-row > :nth-child(5), .repo-open > :nth-child(5) { display: none; }
 }
+
+/* Topology — viewport graph, thin lines, no card chrome */
+.topology {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 420px;
+  user-select: none;
+}
+.topology-svg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+.topo-edge-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.25px;
+  stroke-linecap: butt;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  pointer-events: none;
+  animation: topo-draw 0.7s ease both;
+  animation-delay: calc(0.32s + var(--i, 0) * 45ms);
+}
+.topo-edge.dashed .topo-edge-line {
+  stroke: var(--muted-2);
+  stroke-dasharray: 0.018 0.014;
+  stroke-dashoffset: 0;
+  animation: none;
+}
+.topo-edge-flow {
+  fill: none;
+  stroke: var(--fg);
+  stroke-width: 1.25px;
+  stroke-linecap: round;
+  stroke-dasharray: 0.045 0.955;
+  pointer-events: none;
+  opacity: 0;
+}
+.topo-edge.flow .topo-edge-flow {
+  animation: topo-flow 2.8s linear infinite;
+  animation-delay: calc(1.08s + var(--i, 0) * 45ms);
+}
+.topo-edge-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 16px;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+.topo-edge:hover .topo-edge-line,
+.topo-edge.hot .topo-edge-line,
+.topo-edge:focus-within .topo-edge-line { stroke-width: 2px; }
+.topo-edge.flow:hover .topo-edge-line,
+.topo-edge.flow.hot .topo-edge-line,
+.topo-edge.flow:focus-within .topo-edge-line { stroke: var(--accent-2); }
+.topo-edge.dashed:hover .topo-edge-line,
+.topo-edge.dashed.hot .topo-edge-line,
+.topo-edge.dashed:focus-within .topo-edge-line { stroke: var(--muted); }
+.topo-node {
+  position: absolute;
+  z-index: 1;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+}
+.topo-node:focus { outline: none; }
+.topo-node:focus-visible .topo-node-face {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.topo-rise {
+  position: relative;
+  display: grid;
+  animation: topo-rise 0.45s ease both;
+}
+.topo-node.local .topo-rise { animation-duration: 0.3s; }
+.topo-node.dest .topo-rise { animation-delay: calc(1.02s + var(--i, 0) * 45ms); }
+.topo-node-face {
+  position: relative;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1.25px solid var(--fg-2);
+  background: var(--panel);
+  color: var(--fg);
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+.topo-node.local .topo-node-face {
+  border-color: var(--accent);
+  background: var(--accent-softer);
+  color: var(--accent);
+}
+.topo-node.paused .topo-node-face {
+  opacity: 0.72;
+  border-color: var(--muted-2);
+  background: var(--panel-2);
+  color: var(--muted);
+}
+.topo-node:hover .topo-node-face { border-color: var(--accent); }
+.topo-node.paused:hover .topo-node-face { border-color: var(--muted); }
+.topo-node:active .topo-node-face { transform: scale(0.94); }
+.topo-badge {
+  position: absolute;
+  top: -1px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  pointer-events: none;
+}
+.topo-badge.vis { right: -1px; }
+.topo-badge.pause { left: -1px; }
+.topo-label {
+  position: absolute;
+  left: 50%;
+  max-width: 84px;
+  transform: translateX(-50%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 560;
+  line-height: 14px;
+  color: var(--fg);
+}
+.topo-label.above { bottom: calc(100% + 4px); }
+.topo-label.below { top: calc(100% + 6px); }
+.topo-node.local .topo-label { max-width: 140px; }
+.topo-node.paused .topo-label { color: var(--muted); }
+.topo-sync {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 20px);
+  transform: translateX(-50%);
+  font-size: 10px;
+  line-height: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.topo-pop-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: transparent;
+}
+.topo-pop {
+  position: absolute;
+  z-index: 81;
+  transform: translate(-50%, 8px);
+  width: max-content;
+  max-width: min(280px, calc(100vw - 24px));
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.topo-pop-name {
+  margin: 0;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.topo-pop .btn {
+  white-space: normal;
+  height: auto;
+  min-height: var(--ctrl-h);
+  line-height: 1.3;
+  padding: 6px 10px;
+}
+@keyframes topo-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes topo-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes topo-flow {
+  from { stroke-dashoffset: 0; opacity: 0.55; }
+  to { stroke-dashoffset: -1; opacity: 0.55; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .topo-rise { animation: none; opacity: 1; transform: none; }
+  .topo-edge-line { animation: none; stroke-dashoffset: 0; }
+  .topo-edge.dashed .topo-edge-line { stroke-dasharray: 0.018 0.014; }
+  .topo-edge-flow { animation: none; opacity: 0; }
+}
