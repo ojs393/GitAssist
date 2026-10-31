@@ -106,6 +106,7 @@ fn main() {
             commands::targets_save,
             commands::targets_push,
             commands::repo_work,
+            commands::repo_work_remote,
             commands::repos_work_summaries,
             commands::overrides_get,
             commands::overrides_save,

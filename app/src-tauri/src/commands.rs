@@ -532,6 +532,19 @@ pub async fn repo_work(path: String) -> CmdResult<gitassist_gateway::work::WorkS
 }
 
 #[tauri::command]
+pub async fn repo_work_remote(
+    path: String,
+    remote: String,
+    branch: String,
+) -> CmdResult<gitassist_gateway::work::RemoteSync> {
+    blocking(move || {
+        let repo = expand(&path);
+        gitassist_gateway::work::status_vs_remote(&repo, &remote, &branch).map_err(err)
+    })
+    .await
+}
+
+#[tauri::command]
 pub async fn repos_work_summaries(paths_in: Vec<String>) -> CmdResult<Vec<(String, gitassist_gateway::work::WorkStatus)>> {
     blocking(move || {
         let mut out = Vec::with_capacity(paths_in.len());

@@ -33,6 +33,15 @@ pub struct WorkStatus {
     pub files: Vec<FileChange>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RemoteSync {
+    pub remote: String,
+    pub branch: String,
+    pub ref_name: Option<String>, // e.g. origin/main when known
+    pub ahead: u32,
+    pub behind: u32,
+}
+
 fn git(repo: &Path, args: &[&str]) -> Option<String> {
     let mut cmd = Command::new("git");
     cmd.arg("-C").arg(repo).args(args);
@@ -70,6 +79,40 @@ fn parse_numstat(text: &str) -> (u32, u32, Vec<(String, u32, u32)>) {
         rows.push((path, a_n, d_n));
     }
     (add, del, rows)
+}
+
+/// `rev-list --left-right --count A...B` prints `<behind> <ahead>`.
+fn parse_left_right(text: &str) -> Option<(u32, u32)> {
+    let mut it = text.split_whitespace();
+    let behind = it.next()?.parse().ok()?;
+    let ahead = it.next()?.parse().ok()?;
+    Some((ahead, behind))
+}
+
+/// Compare HEAD to `remote/branch` if that ref exists; else ahead vs remote tips for that remote only.
+pub fn status_vs_remote(repo: &Path, remote: &str, branch: &str) -> Result<RemoteSync> {
+    let tip = format!("{remote}/{branch}");
+    let has_tip = git(repo, &["rev-parse", "--verify", &tip]).is_some();
+    let (ahead, behind) = if has_tip {
+        let spec = format!("{tip}...HEAD");
+        git(repo, &["rev-list", "--left-right", "--count", &spec])
+            .and_then(|s| parse_left_right(&s))
+            .unwrap_or((0, 0))
+    } else {
+        // commits not reachable from this remote's tips
+        let remotes = format!("--remotes={remote}");
+        let ahead = git(repo, &["rev-list", "--count", "HEAD", "--not", &remotes])
+            .and_then(|s| s.trim().parse().ok())
+            .unwrap_or(0);
+        (ahead, 0)
+    };
+    Ok(RemoteSync {
+        remote: remote.to_string(),
+        branch: branch.to_string(),
+        ref_name: has_tip.then_some(tip),
+        ahead,
+        behind,
+    })
 }
 
 /// Snapshot of unpushed commits and uncommitted changes. Best-effort; never blocks long.
@@ -233,5 +276,74 @@ mod tests {
         assert_eq!(w.branch, "main");
         assert_eq!(w.dirty, 0);
         assert!(w.files.is_empty());
+    }
+
+    fn git_ok(repo: &std::path::Path, args: &[&str]) {
+        assert!(
+            Command::new("git")
+                .arg("-C")
+                .arg(repo)
+                .args(args)
+                .status()
+                .unwrap()
+                .success(),
+            "git {args:?} failed"
+        );
+    }
+
+    #[test]
+    fn parse_left_right_swapped_order() {
+        // `rev-list --left-right --count A...B` prints behind then ahead.
+        assert_eq!(parse_left_right("3\t1\n"), Some((1, 3)));
+    }
+
+    #[test]
+    fn status_vs_remote_counts_ahead() {
+        let d = tempdir().unwrap();
+        let bare = d.path().join("bare.git");
+        let repo = d.path().join("repo");
+        fs::create_dir(&repo).unwrap();
+        assert!(Command::new("git")
+            .args(["init", "--bare", "-b", "main"])
+            .arg(&bare)
+            .status()
+            .unwrap()
+            .success());
+        for args in [
+            &["init", "-b", "main"][..],
+            &["config", "user.email", "t@example.com"][..],
+            &["config", "user.name", "t"][..],
+        ] {
+            git_ok(&repo, args);
+        }
+        fs::write(repo.join("a.txt"), "hi\n").unwrap();
+        git_ok(&repo, &["add", "a.txt"]);
+        git_ok(&repo, &["commit", "-m", "init"]);
+        git_ok(&repo, &["remote", "add", "origin", bare.to_str().unwrap()]);
+        git_ok(&repo, &["push", "-u", "origin", "main"]);
+        fs::write(repo.join("a.txt"), "hi\nthere\n").unwrap();
+        git_ok(&repo, &["add", "a.txt"]);
+        git_ok(&repo, &["commit", "-m", "local"]);
+
+        let sync = status_vs_remote(&repo, "origin", "main").unwrap();
+        assert!(sync.ahead >= 1, "ahead was {}", sync.ahead);
+        assert_eq!(sync.behind, 0);
+        assert_eq!(sync.remote, "origin");
+        assert_eq!(sync.branch, "main");
+        assert_eq!(sync.ref_name.as_deref(), Some("origin/main"));
+    }
+
+    #[test]
+    fn missing_remote_ref_is_zeroish() {
+        // No commits and no remote: the tip is missing and the fallback count is 0.
+        let d = tempdir().unwrap();
+        let repo = d.path();
+        git_ok(repo, &["init", "-b", "main"]);
+        let sync = status_vs_remote(repo, "origin", "main").unwrap();
+        assert_eq!(sync.remote, "origin");
+        assert_eq!(sync.branch, "main");
+        assert_eq!(sync.ref_name, None);
+        assert_eq!(sync.ahead, 0);
+        assert_eq!(sync.behind, 0);
     }
 }

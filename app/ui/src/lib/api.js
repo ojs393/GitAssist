@@ -35,6 +35,8 @@ export const api = {
   targetsSave: (path, data) => invoke('targets_save', { path, data: plain(data) }),
   targetsPush: (path, which) => invoke('targets_push', { path, which }),
   repoWork: (path) => invoke('repo_work', { path }),
+  repoWorkRemote: (path, remote, branch) =>
+    invoke('repo_work_remote', { path, remote, branch }),
   reposWorkSummaries: (paths) => invoke('repos_work_summaries', { pathsIn: paths }),
   overridesGet: (path) => invoke('overrides_get', { path }),
   overridesSave: (path, data) => invoke('overrides_save', { path, data: plain(data) }),
