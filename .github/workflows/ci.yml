@@ -1,10 +1,9 @@
 name: CI
 
-# No pull_request trigger — PRs should not wait on Actions.
-# Runs on main and version tags only (release installers).
+# No pull_request or main-push CI — no required runners for day-to-day work.
+# Runs only on version tags (release installers).
 on:
   push:
-    branches: [main]
     tags: ['v*']
 
 permissions:
