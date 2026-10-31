@@ -207,7 +207,9 @@
       {#if route.kind === 'local'}
         <LocalDetail bind:config {tabs} onnavigate={go} onback={() => go('overview')} />
       {:else if route.kind === 'destination'}
-        <DestinationDetail repoKey={route.repoKey} targetId={route.targetId} onback={() => go('overview')} />
+        {#key `${route.repoKey}/${route.targetId}`}
+          <DestinationDetail repoKey={route.repoKey} targetId={route.targetId} onback={() => go('overview')} />
+        {/key}
       {:else if section === 'overview'}
         <Overview bind:config onnavigate={go} onopenrepo={openRepo} />
       {:else if section === 'ignore'}

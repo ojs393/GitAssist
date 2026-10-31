@@ -1,4 +1,29 @@
+<script module>
+  // One targets file per repo. Saves from different destination pages must not write it at once.
+  const repoSaves = new Map();
+
+  function enqueueRepoSave(key, fn) {
+    const prev = repoSaves.get(key) ?? Promise.resolve();
+    const run = prev.then(() => fn(), () => fn());
+    const settled = run.then(() => {}, () => {});
+    repoSaves.set(key, settled);
+    settled.finally(() => {
+      if (repoSaves.get(key) === settled) repoSaves.delete(key);
+    });
+    return run;
+  }
+
+  async function waitForRepoSave(key) {
+    for (;;) {
+      const pending = repoSaves.get(key);
+      if (!pending) return;
+      await pending;
+    }
+  }
+</script>
+
 <script>
+  import { onDestroy } from 'svelte';
   import { api } from '../api.js';
   import Icon from '../ui/Icon.svelte';
   import PageHead from '../ui/PageHead.svelte';
@@ -22,6 +47,10 @@
   let ticket = 0;
   let syncTicket = 0;
   let saveTicket = 0;
+  let alive = true;
+  onDestroy(() => {
+    alive = false;
+  });
 
   const repoName = $derived((doc?.repo_path || '').split(/[\\/]/).filter(Boolean).pop() || '');
   const syncLine = $derived.by(() => {
@@ -35,7 +64,7 @@
   });
 
   function pageLeft(myPage, key, id) {
-    return myPage !== ticket || repoKey !== key || targetId !== id;
+    return !alive || myPage !== ticket || repoKey !== key || targetId !== id;
   }
 
   function message(e) {
@@ -53,7 +82,6 @@
   async function load(key, id) {
     const my = ++ticket;
     loading = true;
-    saving = false;
     error = '';
     missing = '';
     saveNote = '';
@@ -61,8 +89,10 @@
     sync = null;
     syncError = '';
     try {
+      await waitForRepoSave(key);
+      if (!alive || my !== ticket) return;
       const docIn = await api.targetsGetByKey(key);
-      if (my !== ticket) return;
+      if (!alive || my !== ticket) return;
       if (!docIn) {
         doc = null;
         target = null;
@@ -86,12 +116,12 @@
         // refreshSync stores syncError for the hero line.
       }
     } catch (e) {
-      if (my !== ticket) return;
+      if (!alive || my !== ticket) return;
       error = message(e);
       doc = null;
       target = null;
     } finally {
-      if (my === ticket) loading = false;
+      if (alive && my === ticket) loading = false;
     }
   }
 
@@ -111,14 +141,17 @@
       if (!path) throw new Error('Repo path is missing.');
       if (!remote) throw new Error('Set a remote name to compare.');
       const work = await api.repoWork(path);
-      if (my !== syncTicket || pageLeft(myPage, key, id)) return;
+      if (pageLeft(myPage, key, id)) throw new Error('This destination changed before sync finished.');
+      if (my !== syncTicket) return;
       const branch = (work?.branch || '').trim();
       if (!branch) throw new Error('No current branch to compare.');
       const row = await api.repoWorkRemote(path, remote, branch);
-      if (my !== syncTicket || pageLeft(myPage, key, id)) return;
+      if (pageLeft(myPage, key, id)) throw new Error('This destination changed before sync finished.');
+      if (my !== syncTicket) return;
       sync = row;
     } catch (e) {
-      if (my !== syncTicket || pageLeft(myPage, key, id)) return;
+      if (pageLeft(myPage, key, id)) throw e;
+      if (my !== syncTicket) return;
       sync = null;
       syncError = message(e);
       throw new Error(syncError);
@@ -151,10 +184,10 @@
     saving = true;
     error = '';
     try {
-      const notes = await api.targetsSave(next.repo_path, next);
-      if (pageLeft(myPage, key, id)) return false;
+      const notes = await enqueueRepoSave(key, () => api.targetsSave(next.repo_path, next));
+      if (pageLeft(myPage, key, id)) throw new Error('This destination changed before the save finished.');
       const fresh = await api.targetsGetByKey(key);
-      if (pageLeft(myPage, key, id)) return false;
+      if (pageLeft(myPage, key, id)) throw new Error('This destination changed before the save finished.');
       if (!fresh) throw new Error('Saved, but the targets file is missing.');
       const found = (fresh.targets ?? []).find((t) => t.id === id);
       if (!found) throw new Error('Saved, but this destination is missing.');
@@ -165,8 +198,7 @@
       saveNote = notes?.length ? notes.join('; ') : 'Saved.';
       return true;
     } catch (e) {
-      if (pageLeft(myPage, key, id)) return false;
-      error = message(e);
+      if (!pageLeft(myPage, key, id)) error = message(e);
       throw e;
     } finally {
       if (mySave === saveTicket) saving = false;
@@ -176,14 +208,14 @@
   async function setEnabled(v) {
     if (!target || v === target.enabled) return;
     const prev = target.enabled;
+    const myPage = ticket;
     const key = repoKey;
     const id = targetId;
     target.enabled = v;
     try {
-      const saved = await persist();
-      if (!saved) return;
+      await persist();
     } catch (e) {
-      if (repoKey !== key || targetId !== id) return;
+      if (pageLeft(myPage, key, id)) return;
       if (target) target.enabled = prev;
       error = message(e);
     }
@@ -193,12 +225,14 @@
     const myPage = ticket;
     const key = repoKey;
     const id = targetId;
-    const saved = await persist();
-    if (!saved || pageLeft(myPage, key, id) || !doc || !target) return;
+    await persist();
+    if (pageLeft(myPage, key, id) || !doc || !target) {
+      throw new Error('This destination changed before the save finished.');
+    }
     if (!target.enabled) throw new Error('Resume this destination before pushing.');
     const label = target.label.trim();
     const job = await api.jobStartPublish(doc.repo_path, label);
-    if (pageLeft(myPage, key, id)) return;
+    if (pageLeft(myPage, key, id)) throw new Error('This destination changed before the push finished.');
     pushMsg = `Queued ${job.label}. Watch Overview → Runs.`;
   }
 </script>
