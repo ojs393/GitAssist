@@ -114,3 +114,4 @@ app/src-tauri/binaries/*
 agent-transcripts/
 *.session.md
 /tmp/
+.worktrees/
