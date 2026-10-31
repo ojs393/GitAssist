@@ -148,11 +148,17 @@ fn run_checks(repo: &Path, checks: &TargetChecks) -> Result<()> {
 
 fn preflight_messages(repo: &Path, cfg: &Config, remote: &str) -> Result<()> {
     // Compare local HEAD to remote-tracking if present; else just HEAD.
-    let head = git::git_in(Some(repo), &["rev-parse", "HEAD"])?.trim().to_string();
+    let head = git::git_in(Some(repo), &["rev-parse", "HEAD"])?
+        .trim()
+        .to_string();
     let range_end = head.clone();
     let remote_sha = git::git_in(
         Some(repo),
-        &["rev-parse", "--verify", &format!("refs/remotes/{remote}/HEAD")],
+        &[
+            "rev-parse",
+            "--verify",
+            &format!("refs/remotes/{remote}/HEAD"),
+        ],
     )
     .ok()
     .or_else(|| {
@@ -171,11 +177,8 @@ fn preflight_messages(repo: &Path, cfg: &Config, remote: &str) -> Result<()> {
         Some(ref r) => format!("{}..{}", r.trim(), range_end),
         None => range_end,
     };
-    let log = git::git_in(
-        Some(repo),
-        &["log", "--format=%H%x00%B%x00", &range],
-    )
-    .unwrap_or_default();
+    let log =
+        git::git_in(Some(repo), &["log", "--format=%H%x00%B%x00", &range]).unwrap_or_default();
     if log.trim().is_empty() && remote_sha.is_some() {
         return Ok(()); // nothing new
     }
@@ -245,7 +248,9 @@ fn preflight_branches(cfg: &Config, branch: &str) -> Result<()> {
 /// Build or update a cleaned mirror tip for a filtered target.
 pub fn build_mirror(repo: &Path, target: &PublishTarget, branch: &str) -> Result<String> {
     let mirror_ref = format!("refs/gitassist/mirror/{}/{}", target.label, branch);
-    let head = git::git_in(Some(repo), &["rev-parse", "HEAD"])?.trim().to_string();
+    let head = git::git_in(Some(repo), &["rev-parse", "HEAD"])?
+        .trim()
+        .to_string();
     let matcher = Matcher::new(&target.publish_filter);
 
     // List files at HEAD and drop filtered ones into a temp index.
@@ -261,7 +266,9 @@ pub fn build_mirror(repo: &Path, target: &PublishTarget, branch: &str) -> Result
         );
     }
 
-    let git_dir = git::git_in(Some(repo), &["rev-parse", "--git-dir"])?.trim().to_string();
+    let git_dir = git::git_in(Some(repo), &["rev-parse", "--git-dir"])?
+        .trim()
+        .to_string();
     let git_dir = Path::new(repo).join(&git_dir);
     let index = git_dir.join(format!(
         "gitassist-mirror-{}-{}.index",
@@ -283,7 +290,10 @@ pub fn build_mirror(repo: &Path, target: &PublishTarget, branch: &str) -> Result
             String::from_utf8_lossy(&read.stderr)
         );
     }
-    for path in files.lines().filter(|p| !p.is_empty() && matcher.is_ignored(p)) {
+    for path in files
+        .lines()
+        .filter(|p| !p.is_empty() && matcher.is_ignored(p))
+    {
         let _ = Command::new("git")
             .current_dir(repo)
             .env("GIT_INDEX_FILE", &index)
@@ -313,10 +323,7 @@ pub fn build_mirror(repo: &Path, target: &PublishTarget, branch: &str) -> Result
     }
     let commit_refs: Vec<&str> = commit_args.iter().map(|s| s.as_str()).collect();
     let new_commit = git::git_in(Some(repo), &commit_refs)?.trim().to_string();
-    git::git_in(
-        Some(repo),
-        &["update-ref", &mirror_ref, &new_commit],
-    )?;
+    git::git_in(Some(repo), &["update-ref", &mirror_ref, &new_commit])?;
     Ok(new_commit)
 }
 
@@ -327,16 +334,19 @@ fn push_one(repo: &Path, target: &PublishTarget, branch: &str) -> Result<String>
             "refs/gitassist/mirror/{}/{}:refs/heads/{}",
             target.label, branch, branch
         );
-        git::git_in(
-            Some(repo),
-            &["push", &target.remote_name, &spec],
-        )?;
+        git::git_in(Some(repo), &["push", &target.remote_name, &spec])?;
         tip
     } else {
-        let head = git::git_in(Some(repo), &["rev-parse", "HEAD"])?.trim().to_string();
+        let head = git::git_in(Some(repo), &["rev-parse", "HEAD"])?
+            .trim()
+            .to_string();
         git::git_in(
             Some(repo),
-            &["push", &target.remote_name, &format!("HEAD:refs/heads/{branch}")],
+            &[
+                "push",
+                &target.remote_name,
+                &format!("HEAD:refs/heads/{branch}"),
+            ],
         )?;
         head
     };
@@ -377,7 +387,10 @@ pub fn publish(
             let files = git::git_in(Some(repo), &["ls-tree", "-r", "--name-only", "HEAD"])
                 .unwrap_or_default();
             let matcher = Matcher::new(&t.publish_filter);
-            if !files.lines().any(|p| !p.is_empty() && !matcher.is_ignored(p)) {
+            if !files
+                .lines()
+                .any(|p| !p.is_empty() && !matcher.is_ignored(p))
+            {
                 pref_errs.push(format!(
                     "{}: publish filter would leave an empty tree",
                     t.label
@@ -451,7 +464,11 @@ pub fn publish(
                 });
                 // Remaining targets not attempted.
                 let failed_label = t.label.clone();
-                for rest in chosen.iter().skip_while(|x| x.label != failed_label).skip(1) {
+                for rest in chosen
+                    .iter()
+                    .skip_while(|x| x.label != failed_label)
+                    .skip(1)
+                {
                     results.push(TargetResult {
                         label: rest.label.clone(),
                         remote: rest.remote_name.clone(),
@@ -480,7 +497,15 @@ pub fn publish(
     e.repo = repo.to_string_lossy().into();
     e.messages = results
         .iter()
-        .map(|r| format!("{}@{}: {} — {}", r.label, r.remote, if r.ok { "ok" } else { "fail" }, r.message))
+        .map(|r| {
+            format!(
+                "{}@{}: {} — {}",
+                r.label,
+                r.remote,
+                if r.ok { "ok" } else { "fail" },
+                r.message
+            )
+        })
         .collect();
     if !drift.is_empty() {
         e.messages

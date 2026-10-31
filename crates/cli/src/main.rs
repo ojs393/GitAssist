@@ -199,9 +199,8 @@ fn run(args: Vec<String>) -> Result<ExitCode> {
         }
         "instructions" => {
             let cfg = Config::load(&paths.config_file)?;
-            let repo = opt_repo(&args).unwrap_or_else(|| {
-                std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
-            });
+            let repo = opt_repo(&args)
+                .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
             let data = targets::load(&paths, &repo);
             let extra = targets::render_targets_section(&data);
             if args.iter().any(|a| a == "--repo") {
@@ -216,9 +215,8 @@ fn run(args: Vec<String>) -> Result<ExitCode> {
             }
         }
         "targets" => {
-            let repo = opt_repo(&args).unwrap_or_else(|| {
-                std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
-            });
+            let repo = opt_repo(&args)
+                .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
             let data = targets::load(&paths, &repo);
             if data.targets.is_empty() {
                 println!("No publish targets configured for {}.", repo.display());

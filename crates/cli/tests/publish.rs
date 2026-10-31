@@ -4,7 +4,7 @@ use std::fs;
 
 use common::Sandbox;
 use gitassist_gateway::targets::{
-    self, PublishTarget, PushPolicy, RepoTargets, TargetChecks, TargetRole, CheckCommand,
+    self, CheckCommand, PublishTarget, PushPolicy, RepoTargets, TargetChecks, TargetRole,
 };
 use gitassist_gateway::Paths;
 

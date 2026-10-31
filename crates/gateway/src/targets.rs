@@ -154,7 +154,10 @@ pub fn key_for(repo: &Path) -> String {
 }
 
 fn file(paths: &Paths, repo: &Path) -> PathBuf {
-    paths.data_dir.join("targets").join(format!("{}.toml", key_for(repo)))
+    paths
+        .data_dir
+        .join("targets")
+        .join(format!("{}.toml", key_for(repo)))
 }
 
 pub fn load(paths: &Paths, repo: &Path) -> RepoTargets {
