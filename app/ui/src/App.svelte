@@ -21,6 +21,8 @@
   let saveState = $state('');
   let lastSaved = '';
   let timer;
+  let flight = false;
+  let again = false;
   let repoList = $state([]);
   let focusPath = $state(null);
   let focusTab = $state('work');
@@ -57,23 +59,63 @@
     }
   }
 
-  // Autosave shortly after each change; the indicator shows when it landed.
+  // One save at a time. A toggle back to the last saved value cancels the
+  // debounce, and a write that lands after the user moved on is followed
+  // by a write of the live config so the file cannot stay on the old value.
+  async function flushSave() {
+    if (!config) return;
+    if (flight) {
+      again = true;
+      return;
+    }
+    const snapshot = JSON.stringify(config);
+    if (snapshot === lastSaved) {
+      again = false;
+      if (saveState === 'saving') saveState = '';
+      return;
+    }
+    flight = true;
+    again = false;
+    saveState = 'saving';
+    try {
+      await api.save(JSON.parse(snapshot));
+      let written = snapshot;
+      let now = JSON.stringify(config);
+      if (now !== written) {
+        await api.save(JSON.parse(now));
+        written = now;
+        now = JSON.stringify(config);
+      }
+      if (now === written) {
+        lastSaved = written;
+        saveState = 'saved';
+        setTimeout(() => saveState === 'saved' && (saveState = ''), 1800);
+      } else {
+        again = true;
+      }
+    } catch (e) {
+      const now = config ? JSON.stringify(config) : snapshot;
+      if (now === snapshot) saveState = 'error:' + e;
+      else again = true;
+    } finally {
+      flight = false;
+      if (again) {
+        again = false;
+        await flushSave();
+      }
+    }
+  }
+
   $effect(() => {
     if (!config) return;
     const snapshot = JSON.stringify(config);
-    if (snapshot === lastSaved) return;
-    saveState = 'saving';
     clearTimeout(timer);
-    timer = setTimeout(async () => {
-      try {
-        await api.save(JSON.parse(snapshot));
-        lastSaved = snapshot;
-        saveState = 'saved';
-        setTimeout(() => saveState === 'saved' && (saveState = ''), 1800);
-      } catch (e) {
-        saveState = 'error:' + e;
-      }
-    }, 450);
+    if (snapshot === lastSaved) {
+      if (!flight && saveState === 'saving') saveState = '';
+      return;
+    }
+    saveState = 'saving';
+    timer = setTimeout(flushSave, 450);
   });
 
   const tabById = (id) => tabs.find((t) => t.id === id);

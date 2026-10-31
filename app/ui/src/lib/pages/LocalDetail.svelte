@@ -20,7 +20,6 @@
 
   let summaries = $state(null);
   let workError = $state('');
-  let saveError = $state('');
 
   const rules = $derived(
     RULES.map((rule) => ({
@@ -49,7 +48,7 @@
   async function loadWork() {
     workError = '';
     try {
-      const repos = (await api.repos().catch(() => [])) ?? [];
+      const repos = (await api.repos()) ?? [];
       const paths = repos.map((r) => r.path).filter(Boolean);
       if (!paths.length) {
         summaries = [];
@@ -69,17 +68,6 @@
   }
 
   onMount(loadWork);
-
-  // Same switch as the top bar. App also autosaves; this write lands immediately.
-  async function setEnabled(on) {
-    config.enabled = on;
-    saveError = '';
-    try {
-      await api.save(config);
-    } catch (e) {
-      saveError = String(e);
-    }
-  }
 </script>
 
 <PageHead title="Local machine" icon="layout" info="Local commit rules and the machine-wide pause.">
@@ -89,8 +77,6 @@
     </button>
   {/snippet}
 </PageHead>
-
-{#if saveError}<div class="card error-card"><Icon name="alert" /> {saveError}</div>{/if}
 
 <section class="hero {config.enabled ? 'ok' : 'paused'}">
   <div class="hero-icon"><Icon name={config.enabled ? 'shield-check' : 'shield-off'} size={20} stroke={1.6} /></div>
@@ -102,7 +88,7 @@
     <button
       type="button"
       class="btn sm {config.enabled ? 'ghost' : 'primary'}"
-      onclick={() => setEnabled(!config.enabled)}
+      onclick={() => (config.enabled = !config.enabled)}
       title={config.enabled ? 'Pause checking' : 'Turn checking back on'}
     >
       <Icon name={config.enabled ? 'pause' : 'play'} size={13} />
@@ -139,9 +125,7 @@
 {#if workError}<p class="small bad">{workError}</p>{/if}
 {#if summaries === null}
   <div class="loading"><span class="spinner sm"></span></div>
-{:else if !ordered.length}
-  <p class="muted small">No repos yet. Commit somewhere or open Repos to find them.</p>
-{:else}
+{:else if ordered.length}
   <div class="col">
     {#each ordered as row (row.path)}
       <button type="button" class="link-card" title={row.path} onclick={() => onnavigate?.('repos', { repo: row.path, tab: 'work' })}>
@@ -155,4 +139,6 @@
       </button>
     {/each}
   </div>
+{:else if !workError}
+  <p class="muted small">No repos yet. Commit somewhere or open Repos to find them.</p>
 {/if}
