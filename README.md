@@ -1,18 +1,18 @@
 <p align="center">
-  <img src=".github/assets/gitassist-mark.png" width="112" alt="GitAssist logo">
+  <img src=".github/assets/gitassist-mark.png" width="112" alt="GitAssist logo" style="border-radius: 22%;">
 </p>
 
 <h1 align="center">GitAssist</h1>
 
 <p align="center">
-  <strong>Pull request and commit management for you and your AI coding agents.</strong><br>
-  One desktop app sets the rules for every commit, push, pull request, review and issue on your computer,
-  in every repo, for every agent. It works offline and needs no account.
+  <strong>Local control for Git and GitHub — for you and your coding agents.</strong><br>
+  One desktop app to define how commits, pull requests, branches, and ignores should look,
+  then keep every repo and agent on your machine aligned. Offline. No account.
 </p>
 
 <p align="center">
   <a href="#install">Install</a> ·
-  <a href="#first-time-setup">First-time setup</a> ·
+  <a href="#first-time-setup">Setup</a> ·
   <a href="#what-you-can-configure">Configure</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="#security-and-privacy">Security</a>
@@ -22,23 +22,21 @@
 
 ## Why GitAssist
 
-AI coding agents write a lot of your Git history. Each one has its own habits. Some add
-`Co-authored-by` lines, some add "Generated with" footers, and some write long, wordy pull
-request descriptions, commit straight to `main`, or forget your team's conventions.
+GitHub work is easier when the history is consistent: clear commits, clean PRs, protected
+defaults, and secrets that never land in the wrong place. That gets harder when several tools
+and agents touch the same repos — each with its own habits.
 
-GitAssist sits between your computer and GitHub and applies **your** rules to all of it:
+GitAssist is a **local control layer** for that work. You set the policy once; it applies it
+on your computer for every repo and every agent that uses git or the GitHub CLI.
 
-- **Commits and pushes**: length limits, layout, conventional prefixes, wrapping and banned phrases. It can also make you the author every time.
-- **Pull requests**: title and description rules, a limit on how much a description may grow per update, and an auto-updating change table.
-- **Comments, reviews and issues**: the same rules, set separately for each.
-- **Co-author lines**: removes agent attribution and adds your own lines if you want.
-- **Branches**: which branch to start from, protected branches, naming rules, and what to do with new ideas.
-- **Ignore lists**: files that never get committed, scoped by personal or organization repo and public or private repo.
-- **Agents**: Claude Code, Cursor, GitHub Copilot, OpenAI Codex, Gemini CLI and Aider are set up automatically, including agents you install later.
-- **Repos**: one list of every repo on your computer, where each one pushes, and when it was last committed to and pushed.
+**What you get**
 
-It's simple by default: run the setup once and you're done. It's also detailed when you need it:
-every rule can be tuned per kind of text, with a live preview.
+- **Organization** — one place for commit, PR, branch, and ignore rules, with per-repo overrides when a project needs them.
+- **Control** — Fix, warn, or block on the rules that matter; pause everything from the app when you need to.
+- **Agents that stay in line** — Claude Code, Cursor, Copilot, Codex, Gemini CLI, and Aider pick up your conventions automatically; hooks still enforce them on the way out.
+- **Visibility** — see which repos have unpushed work, push from the app, and review what GitAssist changed in Activity.
+
+Setup is one wizard. Defaults are sensible (mostly warn, not block). Dig into any rule when you need detail — live preview included.
 
 ## Install
 
@@ -78,16 +76,14 @@ complete setup. Run it again any time from **Settings → Install**.
 
 ## Using the app
 
-The tabs along the top are:
-
 | Tab | What it's for |
 |---|---|
-| **Overview** | Whether you're protected. Shows commits and pushes, the GitHub CLI, start at login and self-repair, then every agent on one line with its status and an **Apply** or **Remove** button. **Fix all** repairs anything that drifted. |
-| **Commits ▾** | Commit messages, docs-only commits, and merge and squash commits. |
-| **Pull requests ▾** | New pull requests, pull request updates, comments, code reviews and issues. |
-| **Repos ▾** | **Your repos** (every repo on this computer, where it pushes, and when it was last committed to and pushed), **Branches** and **Ignore**. |
-| **Activity** | Everything GitAssist did, with filters and search. |
-| **Settings** (gear) | Your identity and voice, co-author lines, safety, storage, and install. |
+| **Overview** | Protection status, Pause/Start, health checks, agents, live runs, and a shortcut into each repo. |
+| **Commits** | Defaults for commit, docs, and merge messages (used by every project until you customize one). |
+| **Pull requests** | Defaults for PRs, comments, reviews, and issues. |
+| **Repos** | Every local repo, branches, and ignore lists. Open a repo for unpushed work, push targets, and per-project rule overrides. |
+| **Activity** | What GitAssist fixed, warned, or blocked, with search. |
+| **Settings** | Identity, co-authors, safety, storage, and install. |
 
 The switch at the top right pauses or resumes all checks.
 
