@@ -8,6 +8,7 @@
   import PageHead from '../ui/PageHead.svelte';
   import Segmented from '../ui/Segmented.svelte';
   import ActionButton from '../ui/ActionButton.svelte';
+  import RepoAvatar from '../ui/RepoAvatar.svelte';
   import RepoDetail from './RepoDetail.svelte';
 
   let repos = $state(null);
@@ -32,7 +33,7 @@
   }
   onMount(load);
 
-  const OWNER = { personal: ['user', 'Personal'], organization: ['building', 'Organization'], unknown: ['folder', 'Local'] };
+  const OWNER = { personal: 'Personal', organization: 'Organization', unknown: 'Local' };
   const VIS = { public: ['eye', 'Public'], private: ['lock', 'Private'], unknown: ['circle', ''] };
   const latest = (r) => Math.max(r.last_commit ?? 0, r.last_push ?? 0, r.last_sync ?? 0);
   const shown = $derived(
@@ -74,43 +75,40 @@
     <div class="search"><Icon name="search" size={15} /><input bind:value={query} placeholder="Search name, remote or branch" /></div>
   </div>
 
-  <Card raised>
-    {#if !shown.length}
-      <div class="empty"><Icon name="folder" size={26} /><p>{repos.length ? 'Nothing matches.' : 'No repos found yet. Commit in a repo, or choose a folder below.'}</p></div>
-    {:else}
-      <div class="repo-head"><span></span><span>Repo</span><span>Visibility</span><span>Branch</span><span>Committed</span><span>Pushed</span><span></span></div>
-      <div class="repo-rows">
-        {#each shown as r (r.path)}
-          {@const own = OWNER[r.owner] ?? OWNER.unknown}
-          {@const vis = VIS[r.visibility] ?? VIS.unknown}
-          <div class="repo-row repo-row-click">
-            <button type="button" class="repo-open" onclick={() => (selected = r)}>
-              <span class="agent-glyph" title={own[1]}><Icon name={own[0]} size={16} /></span>
-              <span class="repo-name">
-                <strong>{r.name}</strong>
-                <span class="muted small">{r.slug ? `${r.host === 'github.com' ? '' : r.host + ' · '}${r.slug}` : 'No remote'}</span>
-              </span>
-              <span>{#if r.slug}<span class="pill {r.visibility === 'public' ? 'warn' : r.visibility === 'private' ? 'ok' : ''}">{#if vis[1]}<Icon name={vis[0]} size={12} /> {vis[1]}{:else}Not checked{/if}</span>{/if}</span>
-              <span class="mono small repo-branch" title={r.branch ?? ''}>{r.branch ?? '—'}</span>
-              <span class="small muted">{r.last_commit ? relativeTime(r.last_commit) : '—'}</span>
-              <span class="small muted" title={r.last_push_remote ? `to ${r.last_push_remote}` : r.last_sync ? 'last fetch or push' : ''}>{r.last_push ? relativeTime(r.last_push) : r.last_sync ? relativeTime(r.last_sync) : '—'}</span>
-              <span class="go"><Icon name="chevron-right" size={16} /></span>
-            </button>
-            <span class="repo-end">
-              {#if r.local_hooks_path && !r.connected}
-                <ActionButton run={async () => { await api.connectRepo(r.path); repos = await api.repos(); }} label="Connect" size="sm" doneLabel="Connected" go={true} />
-              {/if}
-              <Info align="right">
-                <p class="small"><strong>{own[1]}</strong>{latest(r) ? ` · ${relativeTime(latest(r))}` : ''}</p>
-                <p class="mono small break">{r.path}</p>
-                {#each r.remotes as m}<p class="mono small break">{m.name}: {m.url}</p>{/each}
-              </Info>
+  {#if !shown.length}
+    <div class="sheet empty"><Icon name="folder" size={26} /><p>{repos.length ? 'Nothing matches.' : 'No repos found yet. Commit in a repo, or choose a folder below.'}</p></div>
+  {:else}
+    <div class="repo-grid fill">
+      {#each shown as r (r.path)}
+        {@const own = OWNER[r.owner] ?? OWNER.unknown}
+        {@const vis = VIS[r.visibility] ?? VIS.unknown}
+        <div class="repo-card-wrap">
+          <button type="button" class="repo-card" onclick={() => (selected = r)}>
+            <RepoAvatar login={r.avatar_login || ''} owner={r.owner || 'unknown'} size={36} />
+            <span class="repo-card-body">
+              <strong>{r.name}</strong>
+              <span class="muted-2 small">{r.slug ? `${r.host === 'github.com' ? '' : r.host + ' · '}${r.slug}` : 'No remote'} · {own}</span>
+              <span class="muted small">{r.branch || '—'} · {r.last_push ? relativeTime(r.last_push) : r.last_commit ? relativeTime(r.last_commit) : '—'}</span>
             </span>
+            {#if r.slug}
+              <span class="pill {r.visibility === 'public' ? 'warn' : r.visibility === 'private' ? 'ok' : ''}">{#if vis[1]}<Icon name={vis[0]} size={11} /> {vis[1]}{/if}</span>
+            {/if}
+            <span class="go"><Icon name="chevron-right" size={14} /></span>
+          </button>
+          <div class="repo-card-actions">
+            {#if r.local_hooks_path && !r.connected}
+              <ActionButton run={async () => { await api.connectRepo(r.path); repos = await api.repos(); }} label="Connect" size="sm" doneLabel="Ok" go={true} />
+            {/if}
+            <Info align="right">
+              <p class="small"><strong>{own}</strong>{latest(r) ? ` · ${relativeTime(latest(r))}` : ''}</p>
+              <p class="mono small break">{r.path}</p>
+              {#each r.remotes as m}<p class="mono small break">{m.name}: {m.url}</p>{/each}
+            </Info>
           </div>
-        {/each}
-      </div>
-    {/if}
-  </Card>
+        </div>
+      {/each}
+    </div>
+  {/if}
 
   <Card title="Look in another folder" icon="search" info="Folders like Desktop and Documents are only searched when you choose them, because macOS asks first." quiet collapsible collapsed={true}>
     <div class="row">

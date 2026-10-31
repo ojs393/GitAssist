@@ -3,6 +3,7 @@ pub mod failopen;
 pub mod gh;
 pub mod git;
 pub mod hooks;
+pub mod jobs;
 pub mod log;
 pub mod paths;
 pub mod publish;

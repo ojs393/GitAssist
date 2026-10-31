@@ -104,8 +104,17 @@ fn main() {
             commands::targets_get,
             commands::targets_save,
             commands::targets_push,
+            commands::jobs_list,
+            commands::jobs_cancel,
+            commands::jobs_resume,
+            commands::job_start_publish,
+            commands::job_start_fix_all,
+            commands::job_start_apply,
         ])
         .setup(move |app| {
+            if let Ok(paths) = gitassist_gateway::Paths::resolve() {
+                let _ = gitassist_gateway::jobs::pause_running(&paths);
+            }
             let handle = app.handle().clone();
             tray::create(&handle)?;
             tray::spawn_monitor(handle.clone());

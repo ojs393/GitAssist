@@ -33,6 +33,13 @@ export const api = {
   targetsGet: (path) => invoke('targets_get', { path }),
   targetsSave: (path, data) => invoke('targets_save', { path, data: plain(data) }),
   targetsPush: (path, which) => invoke('targets_push', { path, which }),
+  jobsList: () => invoke('jobs_list'),
+  jobsCancel: (id) => invoke('jobs_cancel', { id }),
+  jobsResume: (id) => invoke('jobs_resume', { id }),
+  jobStartPublish: (path, which) => invoke('job_start_publish', { path, which }),
+  jobStartFixAll: (plan) => invoke('job_start_fix_all', { plan: plain(plan) }),
+  jobStartApply: (id) => invoke('job_start_apply', { id }),
+  clearActivity: () => invoke('clear_activity'),
 };
 
 export const MODES = [

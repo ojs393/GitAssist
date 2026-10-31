@@ -5,6 +5,8 @@
   import Icon from '../ui/Icon.svelte';
   import Info from '../ui/Info.svelte';
   import ActionButton from '../ui/ActionButton.svelte';
+  import RepoAvatar from '../ui/RepoAvatar.svelte';
+  import RunsPanel from '../ui/RunsPanel.svelte';
   import Setup from './Setup.svelte';
 
   let { config = $bindable(), onnavigate } = $props();
@@ -34,7 +36,7 @@
 
   const ITEM_ICONS = { hooks: 'commit', shim: 'terminal', autostart: 'login', repair: 'wrench', config: 'file' };
   const STATE = { on: ['ok', 'On'], off: ['idle', 'Off'], attention: ['bad', 'Fix'], not_needed: ['muted', '—'] };
-  const AGENT = { current: ['ok', 'Working'], stale: ['warn', 'Stale'], not_applied: ['idle', 'Not set'], not_detected: ['muted', 'Missing'] };
+  const AGENT = { current: ['ok', 'On'], stale: ['warn', 'Stale'], not_applied: ['idle', 'Off'], not_detected: ['muted', '—'] };
 
   const installed = $derived(report?.adapters.filter((a) => a.status !== 'not_detected') ?? []);
   const missing = $derived(report?.adapters.filter((a) => a.status === 'not_detected') ?? []);
@@ -42,39 +44,17 @@
     report ? report.items.filter((i) => i.state === 'attention').length + installed.filter((a) => a.status !== 'current').length + report.repos.filter((r) => !r.connected).length : 0,
   );
   const name = (p) => p.split(/[\\/]/).filter(Boolean).pop();
-  const shownRepos = $derived(
-    repoList.length
-      ? repoList
-      : (report?.repos ?? []).map((r) => ({ path: r.path, name: name(r.path), connected: r.connected, branch: null, slug: null, last_push: null, last_sync: null })),
-  );
+  const shownRepos = $derived(repoList.length ? repoList : []);
 
   async function fixAll() {
     const snap = report;
-    if (!snap) return api.repair();
-    const errors = [];
-    for (const r of snap.repos.filter((x) => !x.connected)) {
-      try {
-        await api.connectRepo(r.path);
-      } catch (e) {
-        errors.push(`${name(r.path)}: ${e}`);
-      }
-    }
-    for (const a of snap.adapters.filter((x) => x.status !== 'current' && x.status !== 'not_detected')) {
-      try {
-        await api.applyAdapter(a.id);
-      } catch (e) {
-        errors.push(`${a.name}: ${e}`);
-      }
-    }
-    for (const i of snap.items.filter((x) => x.state === 'attention')) {
-      try {
-        await api.install(i.id);
-      } catch (e) {
-        errors.push(`${i.label}: ${e}`);
-      }
-    }
-    await api.repair();
-    if (errors.length) throw new Error(errors.join('; '));
+    if (!snap) return;
+    const plan = {
+      connect: snap.repos.filter((x) => !x.connected).map((r) => r.path),
+      adapters: snap.adapters.filter((x) => x.status !== 'current' && x.status !== 'not_detected').map((a) => a.id),
+      installs: snap.items.filter((x) => x.state === 'attention').map((i) => i.id),
+    };
+    await api.jobStartFixAll(plan);
   }
 </script>
 
@@ -95,7 +75,7 @@
       {#if !report.turned_on}
         <button class="btn primary sm" onclick={() => (wizard = true)}><Icon name="rocket" size={13} /> Set up <span class="go"><Icon name="chevron-right" size={13} /></span></button>
       {:else if problems && config.enabled}
-        <ActionButton run={fixAll} label="Fix all" icon="wrench" size="sm" doneLabel="Fixed" onresult={refresh} go={true} />
+        <ActionButton run={fixAll} label="Fix all" icon="wrench" size="sm" doneLabel="Queued" onresult={refresh} go={true} />
       {/if}
       <button class="icon-btn" title="Check again" aria-label="Check again" onclick={refresh}><Icon name="refresh" size={14} /></button>
     </div>
@@ -122,43 +102,48 @@
     </div>
   {/if}
 
-  <section class="sheet">
-    <div class="sheet-head">
-      <div class="sheet-title"><Icon name="sparkle" size={14} /> Agents</div>
-      <span class="muted-2 small">{installed.length} found</span>
+  <div class="home-split">
+    <section class="sheet agents-pane">
+      <div class="sheet-head">
+        <div class="sheet-title"><Icon name="sparkle" size={14} /> Agents</div>
+        <span class="muted-2 small">{installed.length}</span>
+      </div>
+      <ul class="agent-rows compact">
+        {#each installed as a}
+          {@const st = AGENT[a.status]}
+          <li class="agent-row">
+            <span class="agent-glyph"><Icon name={'agent-' + a.id} size={13} /></span>
+            <span class="agent-name">{a.name}</span>
+            <span class="info-slot">
+              {#if a.manual.length}<Info align="right"><p><strong>{a.name}</strong></p>{#each a.manual as m}<p>{m}</p>{/each}</Info>{/if}
+            </span>
+            <span class="pill {st[0]}">{st[1]}</span>
+            <span class="agent-action">
+              {#if a.status === 'current'}
+                <ActionButton run={() => api.removeAdapter(a.id)} label="Remove" kind="ghost" size="sm" doneLabel="Ok" onresult={refresh} />
+              {:else}
+                <ActionButton run={() => api.jobStartApply(a.id)} label="Apply" size="sm" doneLabel="Queued" onresult={refresh} go={true} />
+              {/if}
+            </span>
+          </li>
+        {:else}
+          <li class="agent-row muted">None found</li>
+        {/each}
+      </ul>
+      {#if missing.length}<p class="muted-2 small footnote">Auto: {missing.map((a) => a.name).join(', ')}</p>{/if}
+    </section>
+
+    <div class="sheet runs-pane">
+      <RunsPanel {onnavigate} />
     </div>
-    <ul class="agent-rows">
-      {#each installed as a}
-        {@const st = AGENT[a.status]}
-        <li class="agent-row">
-          <span class="agent-glyph"><Icon name={'agent-' + a.id} size={14} /></span>
-          <span class="agent-name">{a.name}</span>
-          <span class="info-slot">
-            {#if a.manual.length}<Info align="right"><p><strong>One step in {a.name}</strong></p>{#each a.manual as m}<p>{m}</p>{/each}</Info>{/if}
-          </span>
-          <span class="pill {st[0]}">{st[1]}</span>
-          <span class="agent-action">
-            {#if a.status === 'current'}
-              <ActionButton run={() => api.removeAdapter(a.id)} label="Remove" kind="ghost" size="sm" doneLabel="Removed" onresult={refresh} />
-            {:else}
-              <ActionButton run={() => api.applyAdapter(a.id)} label="Apply" size="sm" doneLabel="Applied" onresult={refresh} go={true} />
-            {/if}
-          </span>
-        </li>
-      {:else}
-        <li class="agent-row muted">No coding agents found yet.</li>
-      {/each}
-    </ul>
-    {#if missing.length}<p class="muted-2 small footnote">Auto-setup when installed: {missing.map((a) => a.name).join(', ')}</p>{/if}
-  </section>
+  </div>
 
   {#if report.repos.some((r) => !r.connected)}
     <section class="sheet" style="background:var(--accent-softer)">
       <div class="sheet-head">
         <div class="sheet-title"><Icon name="link" size={14} /> Own hooks</div>
-        <Info><p>Husky/lefthook repos — connect so GitAssist runs too.</p></Info>
       </div>
-      <ul class="agent-rows">
+      <ul class="agent-rows compact">
         {#each report.repos.filter((r) => !r.connected) as r}
           <li class="agent-row">
             <span class="agent-glyph"><Icon name="folder" size={13} /></span>
@@ -180,25 +165,19 @@
     {#if !shownRepos.length}
       <p class="muted small">No repos yet. Commit somewhere or open Repos to find them.</p>
     {:else}
-      <div class="repo-rows">
-        {#each shownRepos.slice(0, 8) as r}
-          <div class="repo-row repo-row-click">
-            <button type="button" class="repo-open" onclick={() => onnavigate?.('repos')}>
-              <span class="agent-glyph"><Icon name="folder" size={13} /></span>
-              <span class="repo-name">
-                <strong>{r.name || name(r.path)}</strong>
-                <span class="muted-2 small">{r.slug || (r.connected === false ? 'own hooks' : 'local')}</span>
-              </span>
-              <span class="mono small muted">{r.branch || '—'}</span>
-              <span class="small muted">{r.last_push ? relativeTime(r.last_push) : r.last_sync ? relativeTime(r.last_sync) : '—'}</span>
-              <span class="go"><Icon name="chevron-right" size={14} /></span>
-            </button>
-          </div>
+      <div class="repo-grid">
+        {#each shownRepos as r}
+          <button type="button" class="repo-card" onclick={() => onnavigate?.('repos')}>
+            <RepoAvatar login={r.avatar_login || ''} owner={r.owner || 'unknown'} size={32} />
+            <span class="repo-card-body">
+              <strong>{r.name || name(r.path)}</strong>
+              <span class="muted-2 small">{r.slug || 'local'}{#if r.owner === 'organization'} · org{:else if r.owner === 'personal'} · you{/if}</span>
+              <span class="muted small">{r.branch || '—'} · {r.last_push ? relativeTime(r.last_push) : r.last_sync ? relativeTime(r.last_sync) : '—'}</span>
+            </span>
+            <span class="go"><Icon name="chevron-right" size={14} /></span>
+          </button>
         {/each}
       </div>
-      {#if shownRepos.length > 8}
-        <button type="button" class="btn ghost sm" style="margin-top:6px" onclick={() => onnavigate?.('repos')}>+{shownRepos.length - 8} more <span class="go"><Icon name="chevron-right" size={12} /></span></button>
-      {/if}
     {/if}
   </section>
 
