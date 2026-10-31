@@ -175,6 +175,23 @@ Every repo GitAssist knows about is listed with:
 - the current branch
 - when it was last committed to and last pushed
 
+Click a repo to open its **project detail** page. There you can **Configure** named
+**publish targets** (for example personal, public, and org): remote URL, when to push,
+a publish filter (paths that never go to that remote, via a cleaned mirror), per-target
+message and branch rule overlays, and pre-push checks (local shell commands; block or warn).
+
+Agents are told the targets and should prefer:
+
+```text
+gitassist push personal
+gitassist push public
+gitassist push --all
+```
+
+Plain `git push <remote>` still works when the remote matches a target. Multi-target
+push is all-or-nothing: preflight (rules + checks + filters) runs for every selected
+target before any remote is updated.
+
 The list updates itself as you commit and push. **Find repos** adds repos you haven't touched since
 installing, by searching your home folder. Desktop, Documents and Downloads are only searched when
 you choose them, because macOS asks for permission first. Repos that use Husky or lefthook show a

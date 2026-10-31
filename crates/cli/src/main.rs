@@ -3,8 +3,10 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use anyhow::{bail, Context, Result};
-use gitassist_core::instructions::render_agent_instructions;
+use gitassist_core::instructions::{render_agent_instructions, render_repo_rule_with_extra};
 use gitassist_core::{effective, process, Config, Input, Tab};
+use gitassist_gateway::publish::{self, Selection};
+use gitassist_gateway::targets;
 use gitassist_gateway::{gh, hooks, Paths};
 use gitassist_setup::ops::{self, Step};
 use gitassist_setup::{health, repos, Env};
@@ -18,8 +20,10 @@ Usage:
   gitassist status [--json]                    Check that everything is wired up
   gitassist repair                             Reinstall anything that drifted
   gitassist preview <tab> [--title T] < msg    Show what a message becomes
-  gitassist instructions                       Print the rules given to agents
+  gitassist instructions [--repo PATH]         Print the rules given to agents
   gitassist connect <repo>                     Hook into a repo with its own hooks path
+  gitassist push [<label>|--all] [--repo PATH] Publish to a configured target
+  gitassist targets [--repo PATH]              List publish targets for a repo
   gitassist hook <name> [args...]              (called by git)
 
 Tabs: commit, docs_commit, merge, pr_create, pr_update, pr_comment, review, issue";
@@ -193,10 +197,86 @@ fn run(args: Vec<String>) -> Result<ExitCode> {
                 ExitCode::SUCCESS
             });
         }
-        "instructions" => println!(
-            "{}",
-            render_agent_instructions(&Config::load(&paths.config_file)?)
-        ),
+        "instructions" => {
+            let cfg = Config::load(&paths.config_file)?;
+            let repo = opt_repo(&args).unwrap_or_else(|| {
+                std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+            });
+            let data = targets::load(&paths, &repo);
+            let extra = targets::render_targets_section(&data);
+            if args.iter().any(|a| a == "--repo") {
+                println!("{}", render_repo_rule_with_extra(&cfg, &extra));
+            } else {
+                let mut body = render_agent_instructions(&cfg);
+                if !extra.is_empty() {
+                    body.push_str("\n\n");
+                    body.push_str(extra.trim());
+                }
+                println!("{body}");
+            }
+        }
+        "targets" => {
+            let repo = opt_repo(&args).unwrap_or_else(|| {
+                std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+            });
+            let data = targets::load(&paths, &repo);
+            if data.targets.is_empty() {
+                println!("No publish targets configured for {}.", repo.display());
+            } else {
+                for t in &data.targets {
+                    println!(
+                        "{}  remote={}  enabled={}  push_all={}  mirror={}  checks={}",
+                        t.label,
+                        t.remote_name,
+                        t.enabled,
+                        t.include_in_push_all,
+                        t.needs_mirror(),
+                        t.checks.enabled
+                    );
+                }
+            }
+        }
+        "push" => {
+            let repo = opt_repo(&args).unwrap_or_else(|| {
+                std::env::current_dir()
+                    .context("cwd")
+                    .unwrap_or_else(|_| PathBuf::from("."))
+            });
+            let cfg = Config::load(&paths.config_file)?;
+            let report = if args.iter().any(|a| a == "--all") {
+                publish::publish(&paths, &repo, &cfg, Selection::All)?
+            } else {
+                let skip = opt_repo_flag_value(&args).unwrap_or("");
+                let label = args
+                    .iter()
+                    .skip(1)
+                    .filter(|a| !a.starts_with('-') && a.as_str() != skip)
+                    .next()
+                    .cloned()
+                    .or_else(|| targets::load(&paths, &repo).default_target)
+                    .context("push needs a target label or --all")?;
+                publish::publish(&paths, &repo, &cfg, Selection::Label(&label))?
+            };
+            for r in &report.results {
+                println!(
+                    "{} {} — {}",
+                    if r.ok { "[ok]" } else { "[!!]" },
+                    r.label,
+                    r.message
+                );
+            }
+            if !report.drift.is_empty() {
+                println!(
+                    "drift: these remotes already received a push: {}",
+                    report.drift.join(", ")
+                );
+            }
+            return Ok(if report.ok {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::from(1)
+            });
+        }
         "connect" => {
             let repo = args.get(1).context("connect needs a repository path")?;
             repos::connect(Path::new(repo), &paths)?;
@@ -206,4 +286,27 @@ fn run(args: Vec<String>) -> Result<ExitCode> {
         _ => println!("{USAGE}"),
     }
     Ok(ExitCode::SUCCESS)
+}
+
+fn opt_repo(args: &[String]) -> Option<PathBuf> {
+    args.iter()
+        .position(|a| a == "--repo")
+        .and_then(|i| args.get(i + 1))
+        .map(|p| {
+            let p = p.trim();
+            if let Some(rest) = p.strip_prefix("~/") {
+                directories::BaseDirs::new()
+                    .map(|b| b.home_dir().join(rest))
+                    .unwrap_or_else(|| PathBuf::from(p))
+            } else {
+                PathBuf::from(p)
+            }
+        })
+}
+
+fn opt_repo_flag_value(args: &[String]) -> Option<&str> {
+    args.iter()
+        .position(|a| a == "--repo")
+        .and_then(|i| args.get(i + 1))
+        .map(String::as_str)
 }

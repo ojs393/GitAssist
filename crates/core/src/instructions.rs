@@ -170,7 +170,18 @@ const REPO_RULE_HEAD: &str = "---\ndescription: Git and GitHub writing rules fro
 
 /// Contents of the per-repo rule file for agents that only read project rules.
 pub fn render_repo_rule(cfg: &Config) -> String {
-    format!("{REPO_RULE_HEAD}{}\n", render_agent_instructions(cfg))
+    render_repo_rule_with_extra(cfg, "")
+}
+
+/// Like [`render_repo_rule`], with an optional extra markdown section (e.g. publish targets).
+pub fn render_repo_rule_with_extra(cfg: &Config, extra: &str) -> String {
+    let mut body = render_agent_instructions(cfg);
+    let extra = extra.trim();
+    if !extra.is_empty() {
+        body.push_str("\n\n");
+        body.push_str(extra);
+    }
+    format!("{REPO_RULE_HEAD}{body}\n")
 }
 
 pub fn is_repo_rule(text: &str) -> bool {

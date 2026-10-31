@@ -15,7 +15,10 @@ gitassist-core = { path = "../core" }
 gitassist-gateway = { path = "../gateway" }
 gitassist-setup = { path = "../setup" }
 anyhow = "1"
+directories = "6"
 serde_json = "1"
 
 [dev-dependencies]
 tempfile = "3"
+gitassist-core = { path = "../core" }
+gitassist-gateway = { path = "../gateway" }
