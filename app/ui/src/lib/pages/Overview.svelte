@@ -73,33 +73,44 @@
     </div>
     <div class="hero-actions">
       {#if !report.turned_on}
-        <button class="btn primary sm" onclick={() => (wizard = true)}><Icon name="rocket" size={13} /> Set up <span class="go"><Icon name="chevron-right" size={13} /></span></button>
-      {:else if problems && config.enabled}
-        <ActionButton run={fixAll} label="Fix all" icon="wrench" size="sm" doneLabel="Queued" onresult={refresh} go={true} />
+        <button type="button" class="btn primary sm" onclick={() => (wizard = true)}><Icon name="rocket" size={13} /> Set up <span class="go"><Icon name="chevron-right" size={13} /></span></button>
+      {:else}
+        <button
+          type="button"
+          class="btn sm {config.enabled ? 'ghost' : 'primary'}"
+          onclick={() => (config.enabled = !config.enabled)}
+          title={config.enabled ? 'Pause checking' : 'Turn checking back on'}
+        >
+          <Icon name={config.enabled ? 'pause' : 'play'} size={13} />
+          {config.enabled ? 'Pause' : 'Start'}
+        </button>
+        {#if problems && config.enabled}
+          <ActionButton run={fixAll} label="Fix all" icon="wrench" size="sm" doneLabel="Queued" onresult={refresh} go={true} />
+        {/if}
       {/if}
-      <button class="icon-btn" title="Check again" aria-label="Check again" onclick={refresh}><Icon name="refresh" size={14} /></button>
+      <button type="button" class="icon-btn" title="Check again" aria-label="Check again" onclick={refresh}><Icon name="refresh" size={14} /></button>
     </div>
   </section>
 
   {#if report.turned_on}
-    <div class="tiles">
+    <section class="status-bar sheet">
       {#each report.items as i}
         {@const st = STATE[i.state]}
-        <div class="tile">
-          <div class="tile-top">
-            <span class="tile-icon {st[0]}"><Icon name={ITEM_ICONS[i.id] ?? 'info'} size={13} /></span>
+        <div class="status-cell">
+          <div class="status-cell-top">
+            <span class="status-icon {st[0]}"><Icon name={ITEM_ICONS[i.id] ?? 'info'} size={13} /></span>
+            <span class="status-state {st[0]}">{st[1]}</span>
             <Info align="right"><p>{i.summary}</p>{#each i.details as d}<p class="small muted">{d}</p>{/each}</Info>
           </div>
-          <div class="tile-label">{i.label}</div>
-          <div class="tile-foot">
-            <span class="pill {st[0]}">{st[1]}</span>
-            {#if i.state === 'attention' || (i.state === 'off' && i.id !== 'repair')}
-              <ActionButton run={() => api.install(i.id)} label={i.state === 'attention' ? 'Fix' : 'On'} size="sm" doneLabel="On" onresult={refresh} />
-            {/if}
-          </div>
+          <div class="status-label">{i.label}</div>
+          {#if i.state === 'attention' || (i.state === 'off' && i.id !== 'repair')}
+            <div class="status-cell-action">
+              <ActionButton run={() => api.install(i.id)} label={i.state === 'attention' ? 'Fix' : 'Turn on'} size="sm" doneLabel="On" onresult={refresh} />
+            </div>
+          {/if}
         </div>
       {/each}
-    </div>
+    </section>
   {/if}
 
   <div class="home-split">
