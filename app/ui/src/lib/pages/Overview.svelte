@@ -4,6 +4,7 @@
   import { relativeTime } from '../diff.js';
   import Icon from '../ui/Icon.svelte';
   import Info from '../ui/Info.svelte';
+  import Toggle from '../ui/Toggle.svelte';
   import ActionButton from '../ui/ActionButton.svelte';
   import RepoAvatar from '../ui/RepoAvatar.svelte';
   import RunsPanel from '../ui/RunsPanel.svelte';
@@ -15,6 +16,7 @@
   let error = $state('');
   let checkedAt = $state(null);
   let wizard = $state(false);
+  let syncing = $state(false);
 
   async function refresh() {
     try {
@@ -39,7 +41,6 @@
   const AGENT = { current: ['ok', 'On'], stale: ['warn', 'Stale'], not_applied: ['idle', 'Off'], not_detected: ['muted', '—'] };
 
   const installed = $derived(report?.adapters.filter((a) => a.status !== 'not_detected') ?? []);
-  const missing = $derived(report?.adapters.filter((a) => a.status === 'not_detected') ?? []);
   const problems = $derived(
     report ? report.items.filter((i) => i.state === 'attention').length + installed.filter((a) => a.status !== 'current').length + report.repos.filter((r) => !r.connected).length : 0,
   );
@@ -55,6 +56,55 @@
       installs: snap.items.filter((x) => x.state === 'attention').map((i) => i.id),
     };
     await api.jobStartFixAll(plan);
+  }
+
+  const itemOn = (i) => i.state === 'on';
+  const itemToggleable = (i) => i.id !== 'config' && i.state !== 'not_needed';
+
+  async function setItem(i, on) {
+    // Optimistic UI so the switch doesn't snap back while the install runs.
+    if (report) {
+      report = {
+        ...report,
+        items: report.items.map((x) => (x.id === i.id ? { ...x, state: on ? 'on' : 'off' } : x)),
+      };
+    }
+    try {
+      if (i.id === 'repair') {
+        config.auto_repair = on;
+      } else if (on) {
+        await api.install(i.id);
+      } else if (i.id === 'autostart') {
+        await api.disableAutostart();
+      } else {
+        await api.uninstallStep(i.id);
+      }
+    } catch (e) {
+      error = String(e);
+    }
+    await refresh();
+  }
+
+  /** Full check: repair hooks/shim/login, re-apply drifted agents, probe every shell. */
+  async function syncAll() {
+    syncing = true;
+    try {
+      await api.repair();
+      const h = await api.health(true);
+      report = h;
+      const stale = (h.adapters ?? []).filter((a) => a.status === 'stale' || a.status === 'not_applied');
+      for (const a of stale) {
+        await api.jobStartApply(a.id);
+      }
+      const broken = (h.items ?? []).filter((i) => i.state === 'attention').map((i) => i.id);
+      for (const id of broken) {
+        if (id === 'config') continue;
+        await api.install(id).catch(() => {});
+      }
+      await refresh();
+    } finally {
+      syncing = false;
+    }
   }
 </script>
 
@@ -99,13 +149,19 @@
         <div class="status-cell">
           <div class="status-cell-top">
             <span class="status-icon {st[0]}"><Icon name={ITEM_ICONS[i.id] ?? 'info'} size={13} /></span>
-            <span class="status-state {st[0]}">{st[1]}</span>
-            <Info align="right"><p>{i.summary}</p>{#each i.details as d}<p class="small muted">{d}</p>{/each}</Info>
+            <div class="status-controls">
+              {#if itemToggleable(i)}
+                <Toggle small checked={itemOn(i)} label={itemOn(i) ? 'On' : 'Off'} onchange={(v) => setItem(i, v)} />
+              {:else}
+                <span class="status-state {st[0]}">{st[1]}</span>
+              {/if}
+              <Info align="right"><p>{i.summary}</p>{#each i.details as d}<p class="small muted">{d}</p>{/each}</Info>
+            </div>
           </div>
           <div class="status-label">{i.label}</div>
-          {#if i.state === 'attention' || (i.state === 'off' && i.id !== 'repair')}
+          {#if i.state === 'attention'}
             <div class="status-cell-action">
-              <ActionButton run={() => api.install(i.id)} label={i.state === 'attention' ? 'Fix' : 'Turn on'} size="sm" doneLabel="On" onresult={refresh} />
+              <ActionButton run={() => api.install(i.id)} label="Fix" size="sm" doneLabel="On" onresult={refresh} />
             </div>
           {/if}
         </div>
@@ -117,12 +173,15 @@
     <section class="sheet agents-pane">
       <div class="sheet-head">
         <div class="sheet-title"><Icon name="sparkle" size={14} /> Agents</div>
-        <span class="muted-2 small">{installed.length}</span>
+        <div class="sheet-head-actions">
+          <span class="muted-2 small">{installed.length}/{report.adapters.length}</span>
+          <ActionButton run={syncAll} label={syncing ? 'Syncing' : 'Sync'} icon="refresh" size="sm" kind="ghost" doneLabel="Synced" onresult={refresh} disabled={syncing} />
+        </div>
       </div>
-      <ul class="agent-rows compact">
-        {#each installed as a}
+      <ul class="agent-rows compact agents-fill">
+        {#each report.adapters as a}
           {@const st = AGENT[a.status]}
-          <li class="agent-row">
+          <li class="agent-row" class:dim={a.status === 'not_detected'}>
             <span class="agent-glyph"><Icon name={'agent-' + a.id} size={13} /></span>
             <span class="agent-name">{a.name}</span>
             <span class="info-slot">
@@ -132,6 +191,8 @@
             <span class="agent-action">
               {#if a.status === 'current'}
                 <ActionButton run={() => api.removeAdapter(a.id)} label="Remove" kind="ghost" size="sm" doneLabel="Ok" onresult={refresh} />
+              {:else if a.status === 'not_detected'}
+                <span class="muted-2 small">Auto</span>
               {:else}
                 <ActionButton run={() => api.jobStartApply(a.id)} label="Apply" size="sm" doneLabel="Queued" onresult={refresh} go={true} />
               {/if}
@@ -141,7 +202,7 @@
           <li class="agent-row muted">None found</li>
         {/each}
       </ul>
-      {#if missing.length}<p class="muted-2 small footnote">Auto: {missing.map((a) => a.name).join(', ')}</p>{/if}
+      <p class="muted-2 small footnote agents-note">Sync repairs hooks, PATH, login, and every agent rule file, then re-checks shells.</p>
     </section>
 
     <div class="sheet runs-pane">

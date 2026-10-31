@@ -17,6 +17,7 @@ export const api = {
   health: (probe = true) => invoke('health', { probe }),
   turnOn: () => invoke('turn_on'),
   install: (step) => invoke('install_step', { step }),
+  uninstallStep: (step) => invoke('uninstall_step', { step }),
   disableAutostart: () => invoke('disable_autostart'),
   repair: () => invoke('repair'),
   uninstall: () => invoke('uninstall_all'),
