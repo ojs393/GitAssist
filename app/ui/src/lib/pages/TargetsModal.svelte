@@ -152,7 +152,7 @@
         <Toggle checked={draft.use_mirror || !!draft.publish_filter.length} onchange={(v) => (draft.use_mirror = v)} />
       </Field>
     {:else if tab === 'rules'}
-      <p class="muted small">Optional overrides for this target only. Leave off to use your global GitAssist rules.</p>
+      <p class="muted small">Optional overrides for this target. Off = use global rules.</p>
       <Field label="Override branch rules">
         <Toggle
           checked={!!draft.branches}

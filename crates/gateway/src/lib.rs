@@ -6,6 +6,7 @@ pub mod hooks;
 pub mod log;
 pub mod paths;
 pub mod publish;
+pub mod refname;
 pub mod registry;
 pub mod repo;
 pub mod secure;

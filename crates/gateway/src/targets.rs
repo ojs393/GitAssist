@@ -1,5 +1,4 @@
-//! Per-repo publish targets: where to push, with which rules and filters.
-//! Stored in GitAssist app data only — never in the git tree.
+//! Per-repo publish targets in GitAssist app data (never in the git tree).
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -11,6 +10,7 @@ use gitassist_core::Config;
 use serde::{Deserialize, Serialize};
 
 use crate::paths::Paths;
+use crate::refname::{safe_ref_part, safe_remote_name};
 use crate::secure;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -33,23 +33,13 @@ pub enum PushPolicy {
     AgentOnly,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct CheckCommand {
     pub name: String,
     pub shell: String,
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub env: std::collections::BTreeMap<String, String>,
-}
-
-impl Default for CheckCommand {
-    fn default() -> Self {
-        Self {
-            name: String::new(),
-            shell: String::new(),
-            env: Default::default(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -84,7 +74,6 @@ pub struct PublishTarget {
     pub push_policy: PushPolicy,
     pub include_in_push_all: bool,
     pub publish_filter: Vec<String>,
-    /// When true (default if filter non-empty), push a cleaned mirror ref.
     pub use_mirror: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tabs: Option<Tabs>,
@@ -174,6 +163,7 @@ pub fn load(paths: &Paths, repo: &Path) -> RepoTargets {
 pub fn save(paths: &Paths, repo: &Path, data: &RepoTargets) -> Result<()> {
     let dir = paths.data_dir.join("targets");
     std::fs::create_dir_all(&dir).context("creating targets directory")?;
+    secure::lock_dir(&dir);
     let f = file(paths, repo);
     let mut owned = data.clone();
     owned.repo_path = repo.to_string_lossy().into_owned();
@@ -181,14 +171,19 @@ pub fn save(paths: &Paths, repo: &Path, data: &RepoTargets) -> Result<()> {
         if t.id.is_empty() {
             t.id = PublishTarget::new_id();
         }
-        if t.remote_name.trim().is_empty() {
-            bail!("target `{}` needs a git remote name", t.label);
+        t.label = safe_ref_part(&t.label, "label")?;
+        t.remote_name = safe_remote_name(&t.remote_name)?;
+        if t.url.len() > 2048 {
+            bail!("target `{}` URL is too long", t.label);
         }
-        if t.label.trim().is_empty() {
-            bail!("each target needs a label");
+        if t.checks.timeout_secs == 0 {
+            t.checks.timeout_secs = 600;
         }
-        if !t.publish_filter.is_empty() && !t.use_mirror {
-            // Filters without an explicit mirror still publish via mirror.
+        t.checks.timeout_secs = t.checks.timeout_secs.min(3600);
+        if matches!(t.checks.on_fail, Mode::Fix) {
+            t.checks.on_fail = Mode::Block;
+        }
+        if !t.publish_filter.is_empty() {
             t.use_mirror = true;
         }
     }
@@ -218,7 +213,6 @@ pub fn for_push_all(data: &RepoTargets) -> Vec<&PublishTarget> {
         .collect()
 }
 
-/// Merge target overlays onto a copy of the global config.
 pub fn effective_config(base: &Config, target: &PublishTarget) -> Config {
     let mut cfg = base.clone();
     if let Some(tabs) = &target.tabs {
@@ -286,23 +280,25 @@ fn merge_tabs(dst: &mut Tabs, src: &Tabs) {
     merge_tab(&mut dst.issue, &src.issue);
 }
 
-/// Ensure each enabled target's remote exists with the configured URL.
 pub fn ensure_remotes(repo: &Path, data: &RepoTargets) -> Result<Vec<String>> {
     let mut notes = Vec::new();
     for t in data.targets.iter().filter(|t| t.enabled) {
         if t.url.trim().is_empty() {
             continue;
         }
-        let name = t.remote_name.trim();
-        let existing = crate::git::git_in(Some(repo), &["remote", "get-url", name]);
+        if t.url.contains('\n') || t.url.contains('\0') {
+            bail!("target `{}` URL is invalid", t.label);
+        }
+        let name = safe_remote_name(&t.remote_name)?;
+        let existing = crate::git::git_in(Some(repo), &["remote", "get-url", &name]);
         match existing {
             Ok(url) if url.trim() == t.url.trim() => {}
             Ok(_) => {
-                crate::git::git_in(Some(repo), &["remote", "set-url", name, t.url.trim()])?;
+                crate::git::git_in(Some(repo), &["remote", "set-url", &name, t.url.trim()])?;
                 notes.push(format!("updated remote `{name}`"));
             }
             Err(_) => {
-                crate::git::git_in(Some(repo), &["remote", "add", name, t.url.trim()])?;
+                crate::git::git_in(Some(repo), &["remote", "add", &name, t.url.trim()])?;
                 notes.push(format!("added remote `{name}`"));
             }
         }
@@ -310,7 +306,6 @@ pub fn ensure_remotes(repo: &Path, data: &RepoTargets) -> Result<Vec<String>> {
     Ok(notes)
 }
 
-/// Markdown section for agent instruction files (no private URLs).
 pub fn render_targets_section(data: &RepoTargets) -> String {
     if data.targets.is_empty() {
         return String::new();
