@@ -41,10 +41,9 @@
 
   async function push(which) {
     pushMsg = '';
-    const report = await api.targetsPush(repo.path, which);
-    pushMsg = report.results.map((r) => `${r.ok ? 'ok' : 'fail'} ${r.label}: ${r.message}`).join('\n');
-    if (report.drift?.length) pushMsg += `\ndrift: ${report.drift.join(', ')}`;
-    if (!report.ok) throw new Error(pushMsg);
+    // Background job — survives leaving this page; track progress on Overview → Runs.
+    const job = await api.jobStartPublish(repo.path, which);
+    pushMsg = `Queued ${job.label}. Watch progress on Overview → Runs (Cancel / Resume there).`;
   }
 
   const roleIcon = (role) => (role === 'public' ? 'eye' : role === 'organization' ? 'building' : 'user');

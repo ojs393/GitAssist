@@ -65,7 +65,12 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
                 }
                 refresh(app);
             }
-            "quit" => app.exit(0),
+            "quit" => {
+                if let Ok(paths) = Paths::resolve() {
+                    let _ = gitassist_gateway::jobs::pause_running(&paths);
+                }
+                app.exit(0);
+            }
             _ => {}
         })
         .build(app)?;

@@ -373,6 +373,8 @@ pub struct RepoView {
     name: String,
     host: Option<String>,
     slug: Option<String>,
+    /// GitHub login for avatar (`https://github.com/{login}.png`), if host is github.com.
+    avatar_login: Option<String>,
     owner: gitassist_core::scope::Owner,
     visibility: Visibility,
     connected: bool,
@@ -399,6 +401,13 @@ fn repo_views(paths: &Paths, env: &Env) -> Vec<RepoView> {
             let connected = record.local_hooks_path.is_some()
                 && !repos::in_protected_folder(Path::new(&record.path), &env.home)
                 && repos::status(Path::new(&record.path)).connected;
+            let avatar_login = primary.as_ref().and_then(|r| {
+                if r.host == "github.com" {
+                    Some(r.owner.clone())
+                } else {
+                    None
+                }
+            });
             RepoView {
                 name: Path::new(&record.path)
                     .file_name()
@@ -406,6 +415,7 @@ fn repo_views(paths: &Paths, env: &Env) -> Vec<RepoView> {
                     .unwrap_or_default(),
                 host: primary.as_ref().map(|r| r.host.clone()),
                 slug: primary.as_ref().map(|r| r.slug()),
+                avatar_login,
                 owner: scope.owner,
                 visibility: scope.visibility,
                 connected,
@@ -500,4 +510,379 @@ pub async fn targets_push(path: String, which: String) -> CmdResult<PublishRepor
         Ok(report)
     })
     .await
+}
+
+#[tauri::command]
+pub async fn jobs_list() -> CmdResult<Vec<gitassist_gateway::jobs::Job>> {
+    blocking(|| {
+        let (paths, _) = ctx()?;
+        Ok(gitassist_gateway::jobs::list(&paths))
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn jobs_cancel(id: String) -> CmdResult<gitassist_gateway::jobs::Job> {
+    blocking(move || {
+        let (paths, _) = ctx()?;
+        gitassist_gateway::jobs::request_cancel(&paths, &id).map_err(err)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn jobs_resume(id: String) -> CmdResult<gitassist_gateway::jobs::Job> {
+    let job = blocking(move || {
+        let (paths, _) = ctx()?;
+        let job = gitassist_gateway::jobs::get(&paths, &id).ok_or("job not found")?;
+        if job.kind != gitassist_gateway::jobs::JobKind::Publish {
+            return Err("only publish jobs can resume here".into());
+        }
+        Ok(job)
+    })
+    .await?;
+    let jid = job.id.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let Ok((paths, _)) = ctx() else { return };
+        let Ok(cfg) = Config::load(&paths.config_file) else { return };
+        let _ = gitassist_gateway::jobs::resume(&paths, &cfg, &jid);
+    });
+    Ok(job)
+}
+
+#[tauri::command]
+pub async fn job_start_publish(path: String, which: String) -> CmdResult<gitassist_gateway::jobs::Job> {
+    let job = blocking(move || {
+        let (paths, _) = ctx()?;
+        let repo = expand(&path);
+        gitassist_gateway::jobs::start_publish(&paths, &repo, &which).map_err(err)
+    })
+    .await?;
+    let jid = job.id.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let Ok((paths, _)) = ctx() else { return };
+        let Ok(cfg) = Config::load(&paths.config_file) else { return };
+        let _ = gitassist_gateway::jobs::run_publish(&paths, &cfg, &jid);
+    });
+    Ok(job)
+}
+
+/// Fix-all as a background job. Steps come from the UI health snapshot.
+#[derive(Clone, serde::Deserialize)]
+pub struct FixAllPlan {
+    pub connect: Vec<String>,
+    pub adapters: Vec<String>,
+    pub installs: Vec<String>,
+}
+
+fn step_done(paths: &Paths, job_id: &str, step_id: &str) -> bool {
+    gitassist_gateway::jobs::get(paths, job_id)
+        .and_then(|j| j.steps.into_iter().find(|s| s.id == step_id))
+        .is_some_and(|s| s.status == gitassist_gateway::jobs::StepStatus::Done)
+}
+
+#[tauri::command]
+pub async fn job_start_fix_all(plan: FixAllPlan) -> CmdResult<gitassist_gateway::jobs::Job> {
+    let plan_run = plan.clone();
+    let job = blocking(move || {
+        let (paths, _) = ctx()?;
+        let mut steps = Vec::new();
+        for p in &plan.connect {
+            let name = Path::new(p)
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| p.clone());
+            steps.push((format!("connect:{p}"), format!("Connect {name}")));
+        }
+        for id in &plan.adapters {
+            steps.push((format!("adapter:{id}"), format!("Apply {id}")));
+        }
+        for id in &plan.installs {
+            steps.push((format!("install:{id}"), format!("Fix {id}")));
+        }
+        steps.push(("repair".into(), "Repair".into()));
+        gitassist_gateway::jobs::start_fix_all(&paths, steps).map_err(err)
+    })
+    .await?;
+
+    let jid = job.id.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let Ok((paths, env)) = ctx() else { return };
+        let cli = bundled_cli().ok();
+        let app = app_exe();
+        let dummy = PathBuf::from("gitassist");
+        let cli_path = cli.as_deref().unwrap_or(dummy.as_path());
+
+        for p in &plan_run.connect {
+            if gitassist_gateway::jobs::is_cancelled(&jid) {
+                let _ = gitassist_gateway::jobs::request_cancel(&paths, &jid);
+                return;
+            }
+            let sid = format!("connect:{p}");
+            if step_done(&paths, &jid, &sid) {
+                continue;
+            }
+            let _ = gitassist_gateway::jobs::set_step(
+                &paths,
+                &jid,
+                &sid,
+                gitassist_gateway::jobs::StepStatus::Running,
+                "connecting…",
+            );
+            match repos::connect(Path::new(p), &paths) {
+                Ok(()) => {
+                    let _ = gitassist_gateway::jobs::set_step(
+                        &paths,
+                        &jid,
+                        &sid,
+                        gitassist_gateway::jobs::StepStatus::Done,
+                        "connected",
+                    );
+                }
+                Err(e) => {
+                    let _ = gitassist_gateway::jobs::set_step(
+                        &paths,
+                        &jid,
+                        &sid,
+                        gitassist_gateway::jobs::StepStatus::Failed,
+                        e.to_string(),
+                    );
+                }
+            }
+        }
+
+        let Ok(cfg) = Config::load(&paths.config_file) else {
+            let _ = gitassist_gateway::jobs::finish_job(
+                &paths,
+                &jid,
+                gitassist_gateway::jobs::JobStatus::Failed,
+                Some("config load failed".into()),
+            );
+            return;
+        };
+
+        for id in &plan_run.adapters {
+            if gitassist_gateway::jobs::is_cancelled(&jid) {
+                let _ = gitassist_gateway::jobs::request_cancel(&paths, &jid);
+                return;
+            }
+            let sid = format!("adapter:{id}");
+            if step_done(&paths, &jid, &sid) {
+                continue;
+            }
+            let _ = gitassist_gateway::jobs::set_step(
+                &paths,
+                &jid,
+                &sid,
+                gitassist_gateway::jobs::StepStatus::Running,
+                "applying…",
+            );
+            match adapters::find(&env, &cfg, id) {
+                Some(a) => match adapters::apply(&a, &paths) {
+                    Ok(()) => {
+                        let _ = gitassist_gateway::jobs::set_step(
+                            &paths,
+                            &jid,
+                            &sid,
+                            gitassist_gateway::jobs::StepStatus::Done,
+                            "applied",
+                        );
+                    }
+                    Err(e) => {
+                        let _ = gitassist_gateway::jobs::set_step(
+                            &paths,
+                            &jid,
+                            &sid,
+                            gitassist_gateway::jobs::StepStatus::Failed,
+                            e.to_string(),
+                        );
+                    }
+                },
+                None => {
+                    let _ = gitassist_gateway::jobs::set_step(
+                        &paths,
+                        &jid,
+                        &sid,
+                        gitassist_gateway::jobs::StepStatus::Failed,
+                        "unknown agent",
+                    );
+                }
+            }
+        }
+
+        for id in &plan_run.installs {
+            if gitassist_gateway::jobs::is_cancelled(&jid) {
+                let _ = gitassist_gateway::jobs::request_cancel(&paths, &jid);
+                return;
+            }
+            let sid = format!("install:{id}");
+            if step_done(&paths, &jid, &sid) {
+                continue;
+            }
+            let _ = gitassist_gateway::jobs::set_step(
+                &paths,
+                &jid,
+                &sid,
+                gitassist_gateway::jobs::StepStatus::Running,
+                "installing…",
+            );
+            let Some(step) = Step::parse(id) else {
+                let _ = gitassist_gateway::jobs::set_step(
+                    &paths,
+                    &jid,
+                    &sid,
+                    gitassist_gateway::jobs::StepStatus::Failed,
+                    "unknown step",
+                );
+                continue;
+            };
+            match ops::install(step, &paths, &env, cli_path, app.as_deref()) {
+                Ok(msg) => {
+                    let _ = gitassist_gateway::jobs::set_step(
+                        &paths,
+                        &jid,
+                        &sid,
+                        gitassist_gateway::jobs::StepStatus::Done,
+                        msg,
+                    );
+                }
+                Err(e) => {
+                    let _ = gitassist_gateway::jobs::set_step(
+                        &paths,
+                        &jid,
+                        &sid,
+                        gitassist_gateway::jobs::StepStatus::Failed,
+                        e.to_string(),
+                    );
+                }
+            }
+        }
+
+        if gitassist_gateway::jobs::is_cancelled(&jid) {
+            let _ = gitassist_gateway::jobs::request_cancel(&paths, &jid);
+            return;
+        }
+        if !step_done(&paths, &jid, "repair") {
+            let _ = gitassist_gateway::jobs::set_step(
+                &paths,
+                &jid,
+                "repair",
+                gitassist_gateway::jobs::StepStatus::Running,
+                "repairing…",
+            );
+            match ops::repair(&paths, &env, cli_path, app.as_deref()) {
+                Ok(notes) => {
+                    let _ = gitassist_gateway::jobs::set_step(
+                        &paths,
+                        &jid,
+                        "repair",
+                        gitassist_gateway::jobs::StepStatus::Done,
+                        notes.join("; "),
+                    );
+                }
+                Err(e) => {
+                    let _ = gitassist_gateway::jobs::set_step(
+                        &paths,
+                        &jid,
+                        "repair",
+                        gitassist_gateway::jobs::StepStatus::Failed,
+                        e.to_string(),
+                    );
+                    let _ = gitassist_gateway::jobs::finish_job(
+                        &paths,
+                        &jid,
+                        gitassist_gateway::jobs::JobStatus::Failed,
+                        Some(e.to_string()),
+                    );
+                    return;
+                }
+            }
+        }
+        let failed = gitassist_gateway::jobs::get(&paths, &jid)
+            .map(|j| {
+                j.steps
+                    .iter()
+                    .any(|s| s.status == gitassist_gateway::jobs::StepStatus::Failed)
+            })
+            .unwrap_or(false);
+        let _ = gitassist_gateway::jobs::finish_job(
+            &paths,
+            &jid,
+            if failed {
+                gitassist_gateway::jobs::JobStatus::Failed
+            } else {
+                gitassist_gateway::jobs::JobStatus::Done
+            },
+            None,
+        );
+    });
+    Ok(job)
+}
+
+#[tauri::command]
+pub async fn job_start_apply(id: String) -> CmdResult<gitassist_gateway::jobs::Job> {
+    let id2 = id.clone();
+    let job = blocking(move || {
+        let (paths, env) = ctx()?;
+        let cfg = Config::load(&paths.config_file).map_err(err)?;
+        let a = adapters::find(&env, &cfg, &id).ok_or("unknown agent")?;
+        gitassist_gateway::jobs::start_apply_adapter(&paths, &a.id, &a.name).map_err(err)
+    })
+    .await?;
+    let jid = job.id.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let Ok((paths, env)) = ctx() else { return };
+        let Ok(cfg) = Config::load(&paths.config_file) else { return };
+        let sid = id2.clone();
+        let _ = gitassist_gateway::jobs::set_step(
+            &paths,
+            &jid,
+            &sid,
+            gitassist_gateway::jobs::StepStatus::Running,
+            "applying…",
+        );
+        match adapters::find(&env, &cfg, &id2) {
+            Some(a) => match adapters::apply(&a, &paths) {
+                Ok(()) => {
+                    let _ = gitassist_gateway::jobs::set_step(
+                        &paths,
+                        &jid,
+                        &sid,
+                        gitassist_gateway::jobs::StepStatus::Done,
+                        "applied",
+                    );
+                    let _ = gitassist_gateway::jobs::finish_job(
+                        &paths,
+                        &jid,
+                        gitassist_gateway::jobs::JobStatus::Done,
+                        None,
+                    );
+                }
+                Err(e) => {
+                    let _ = gitassist_gateway::jobs::set_step(
+                        &paths,
+                        &jid,
+                        &sid,
+                        gitassist_gateway::jobs::StepStatus::Failed,
+                        e.to_string(),
+                    );
+                    let _ = gitassist_gateway::jobs::finish_job(
+                        &paths,
+                        &jid,
+                        gitassist_gateway::jobs::JobStatus::Failed,
+                        Some(e.to_string()),
+                    );
+                }
+            },
+            None => {
+                let _ = gitassist_gateway::jobs::finish_job(
+                    &paths,
+                    &jid,
+                    gitassist_gateway::jobs::JobStatus::Failed,
+                    Some("unknown agent".into()),
+                );
+            }
+        }
+    });
+    Ok(job)
 }
