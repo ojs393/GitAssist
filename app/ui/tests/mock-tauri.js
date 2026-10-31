@@ -61,6 +61,45 @@ function report() {
   };
 }
 
+const targetsByKey = {
+  abc: {
+    repo_path: '/home/user/code/app',
+    default_target: 'personal',
+    targets: [
+      {
+        id: 't1',
+        label: 'personal',
+        role: 'personal',
+        remote_name: 'origin',
+        url: 'git@github.com:octo/app.git',
+        enabled: true,
+        push_policy: 'manual',
+        include_in_push_all: true,
+        publish_filter: [],
+        use_mirror: false,
+        tabs: null,
+        branches: null,
+        checks: { enabled: false, on_fail: 'block', timeout_secs: 600, commands: [] },
+      },
+      {
+        id: 't2',
+        label: 'public',
+        role: 'public',
+        remote_name: 'public',
+        url: 'git@github.com:octo/app-public.git',
+        enabled: false,
+        push_policy: 'with_all',
+        include_in_push_all: false,
+        publish_filter: ['.env'],
+        use_mirror: true,
+        tabs: null,
+        branches: null,
+        checks: { enabled: true, on_fail: 'warn', timeout_secs: 120, commands: [{ name: 'test', shell: 'cargo test', env: {} }] },
+      },
+    ],
+  },
+};
+
 function preview({ config: cfg, tab, title, body }) {
   const strip = cfg.tabs[tab].strip_trailers ?? true;
   const lines = body.replace(/\r/g, '').split('\n');
@@ -111,6 +150,40 @@ const handlers = {
   scan_repos: async () => { await sleep(400); return [{ path: '/home/user/code/lefthook-tool', local_hooks_path: '.lefthook', connected: false }]; },
   connect_repo: async () => sleep(300),
   disconnect_repo: async () => sleep(300),
+  targets_get_by_key: ({ key }) => {
+    if (!/^[0-9a-f]{1,16}$/.test(key ?? '')) throw 'invalid repo key';
+    return targetsByKey[key] ? structuredClone(targetsByKey[key]) : null;
+  },
+  targets_get: ({ path }) => {
+    const hit = Object.values(targetsByKey).find((d) => d.repo_path === path);
+    return hit ? structuredClone(hit) : { repo_path: path, default_target: null, targets: [] };
+  },
+  targets_save: ({ path, data }) => {
+    const key = Object.keys(targetsByKey).find((k) => targetsByKey[k].repo_path === path);
+    if (!key) throw `no targets file for ${path}`;
+    const next = structuredClone(data);
+    next.repo_path = path;
+    targetsByKey[key] = next;
+    return [];
+  },
+  targets_list_all: () =>
+    Object.entries(targetsByKey).flatMap(([repo_key, data]) =>
+      (data.targets ?? []).map((target) => ({ repo_path: data.repo_path, repo_key, target: structuredClone(target) })),
+    ),
+  repo_work: () => ({
+    ahead: 2, behind: 1, dirty: 0, staged: 0, additions: 4, deletions: 1,
+    branch: 'feat/retries', upstream: 'origin/feat/retries', files: [],
+  }),
+  repo_work_remote: ({ remote, branch }) => ({
+    remote, branch, ref_name: `${remote}/${branch}`, ahead: remote === 'origin' ? 2 : 0, behind: remote === 'public' ? 4 : 1,
+  }),
+  overrides_get: ({ path }) => ({ repo_path: path, tabs: {} }),
+  overrides_save: () => {},
+  overrides_clear_tab: () => {},
+  job_start_publish: ({ path, which }) => {
+    window.__lastPublish = { path, which };
+    return { id: 'job-1', label: which, status: 'running' };
+  },
 };
 
 window.__TAURI__ = {

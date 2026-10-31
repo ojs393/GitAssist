@@ -160,6 +160,28 @@ pub fn load(paths: &Paths, repo: &Path) -> RepoTargets {
         })
 }
 
+/// `key` is the hex id from [`key_for`] (the targets filename), not a filesystem path.
+pub fn load_by_key(paths: &Paths, key: &str) -> Result<Option<RepoTargets>> {
+    if !is_repo_key(key) {
+        bail!("invalid repo key");
+    }
+    let f = paths.data_dir.join("targets").join(format!("{key}.toml"));
+    if !f.is_file() {
+        return Ok(None);
+    }
+    let text = std::fs::read_to_string(&f).context("reading targets file")?;
+    let data = toml::from_str(&text).context("parsing targets file")?;
+    Ok(Some(data))
+}
+
+fn is_repo_key(key: &str) -> bool {
+    let bytes = key.as_bytes();
+    (1..=16).contains(&bytes.len())
+        && bytes
+            .iter()
+            .all(|c| matches!(c, b'0'..=b'9' | b'a'..=b'f'))
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DestinationRow {
     pub repo_path: String,
@@ -478,5 +500,57 @@ mod tests {
         assert_eq!(rows[0].repo_path, repo.to_string_lossy());
         assert!(list_all(&paths, &[missing]).unwrap().is_empty());
         assert!(list_all(&paths, &[]).unwrap().is_empty());
+    }
+
+    #[test]
+    fn load_by_key_round_trip() {
+        let dir = tempdir().unwrap();
+        let paths = Paths::from_dirs(dir.path().join("c"), dir.path().join("d"));
+        let repo = dir.path().join("repo");
+        std::fs::create_dir_all(&repo).unwrap();
+        let data = RepoTargets {
+            repo_path: repo.to_string_lossy().into(),
+            default_target: Some("personal".into()),
+            targets: vec![
+                PublishTarget {
+                    id: "t1".into(),
+                    label: "personal".into(),
+                    role: TargetRole::Personal,
+                    remote_name: "origin".into(),
+                    url: "git@github.com:me/private.git".into(),
+                    enabled: true,
+                    ..Default::default()
+                },
+                PublishTarget {
+                    id: "t2".into(),
+                    label: "public".into(),
+                    role: TargetRole::Public,
+                    remote_name: "public".into(),
+                    url: "git@github.com:me/public.git".into(),
+                    enabled: true,
+                    ..Default::default()
+                },
+            ],
+        };
+        save(&paths, &repo, &data).unwrap();
+        let key = key_for(&repo);
+        let loaded = load_by_key(&paths, &key).unwrap().expect("targets file");
+        assert_eq!(loaded, load(&paths, &repo));
+        assert_eq!(loaded.targets[0].id, "t1");
+        assert_eq!(loaded.default_target.as_deref(), Some("personal"));
+
+        let mut edited = loaded;
+        edited.targets[0].enabled = false;
+        save(&paths, &repo, &edited).unwrap();
+        let again = load_by_key(&paths, &key).unwrap().unwrap();
+        assert!(!again.targets[0].enabled);
+        assert_eq!(again.targets[1].label, "public");
+        assert_eq!(again.targets[1].id, "t2");
+
+        assert!(load_by_key(&paths, "abc").unwrap().is_none());
+        assert!(load_by_key(&paths, "../etc").is_err());
+        assert!(load_by_key(&paths, "ABC").is_err());
+        assert!(load_by_key(&paths, "").is_err());
+        assert!(load_by_key(&paths, &"a".repeat(17)).is_err());
     }
 }

@@ -32,6 +32,7 @@ export const api = {
   connectRepo: (path) => invoke('connect_repo', { path }),
   disconnectRepo: (path) => invoke('disconnect_repo', { path }),
   targetsGet: (path) => invoke('targets_get', { path }),
+  targetsGetByKey: (key) => invoke('targets_get_by_key', { key }),
   targetsSave: (path, data) => invoke('targets_save', { path, data: plain(data) }),
   targetsListAll: (paths) => invoke('targets_list_all', { pathsIn: paths }),
   targetsPush: (path, which) => invoke('targets_push', { path, which }),

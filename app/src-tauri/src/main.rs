@@ -103,6 +103,7 @@ fn main() {
             commands::connect_repo,
             commands::disconnect_repo,
             commands::targets_get,
+            commands::targets_get_by_key,
             commands::targets_save,
             commands::targets_list_all,
             commands::targets_push,
