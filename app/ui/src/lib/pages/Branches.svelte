@@ -1,8 +1,7 @@
 <script>
   import { MODES, BRANCH_PRESETS } from '../api.js';
-  import Icon from '../ui/Icon.svelte';
-  import Info from '../ui/Info.svelte';
   import Card from '../ui/Card.svelte';
+  import PageHead from '../ui/PageHead.svelte';
   import Field from '../ui/Field.svelte';
   import Toggle from '../ui/Toggle.svelte';
   import Segmented from '../ui/Segmented.svelte';
@@ -18,24 +17,21 @@
   const example = $derived(`${b.prefixes[0] ?? 'feat'}/short-topic`);
 </script>
 
-<header class="page-head">
-  <div class="page-title">
-    <span class="page-icon"><Icon name="branch" size={20} /></span>
-    <h1>Branches</h1>
-    <Info><p>Which branch new work starts from, which branches never get direct commits, how branches are named, and what agents do with new ideas. Checked on every commit and push.</p></Info>
-  </div>
-  <Toggle checked={b.enabled} onchange={(v) => (config.branches.enabled = v)} label={b.enabled ? 'Checking' : 'Off'} />
-</header>
+<PageHead title="Branches" icon="branch" info="Base branch, protected names, naming rules, new-idea flow.">
+  {#snippet actions()}
+    <Toggle checked={b.enabled} onchange={(v) => (config.branches.enabled = v)} label={b.enabled ? 'On' : 'Off'} />
+  {/snippet}
+</PageHead>
 
 <div class="split even" class:dim={!b.enabled}>
   <div class="col">
-    <Card title="Quick setup" icon="sparkle">
+    <Card title="Quick setup" icon="sparkle" emphasis>
       <div class="choices">
         {#each BRANCH_PRESETS as p}<Choice icon={p.icon} title={p.label} note={p.note} selected={active === p.id} onclick={() => (config.branches = p.apply(config.branches))} />{/each}
       </div>
     </Card>
 
-    <Card title="Where work starts" icon="branch">
+    <Card title="Where work starts" icon="branch" raised>
       <Field label="Start new work from" info="Agents are told to branch off this and pull it first.">
         <input class="short" value={b.base} placeholder="main" oninput={(e) => (config.branches.base = e.currentTarget.value.trim())} />
       </Field>
@@ -49,7 +45,7 @@
   </div>
 
   <div class="col">
-    <Card title="Branch names" icon="tag" info="New branches must start with one of these words and a slash. Leave empty to allow any name.">
+    <Card title="Branch names" icon="tag" info="New branches must start with one of these words and a slash. Leave empty to allow any name." raised>
       <Field label="Allowed types" stacked>
         <ChipList items={b.prefixes} empty="Any name is fine" placeholder={'feat\nfix\ndocs\nchore'} onchange={(v) => (config.branches.prefixes = v)} />
       </Field>
@@ -59,7 +55,7 @@
       {/if}
     </Card>
 
-    <Card title="New ideas" icon="sparkle" info="Told to every agent, so ideas become issues before they become code.">
+    <Card title="New ideas" icon="sparkle" info="Told to every agent, so ideas become issues before they become code." quiet>
       <textarea rows="3" value={b.ideas} oninput={(e) => (config.branches.ideas = e.currentTarget.value)} placeholder="What should an agent do with a new idea?"></textarea>
     </Card>
   </div>

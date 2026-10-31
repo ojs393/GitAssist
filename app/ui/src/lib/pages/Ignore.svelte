@@ -1,8 +1,8 @@
 <script>
   import { api } from '../api.js';
   import Icon from '../ui/Icon.svelte';
-  import Info from '../ui/Info.svelte';
   import Card from '../ui/Card.svelte';
+  import PageHead from '../ui/PageHead.svelte';
   import Field from '../ui/Field.svelte';
   import Toggle from '../ui/Toggle.svelte';
   import Segmented from '../ui/Segmented.svelte';
@@ -38,18 +38,15 @@
   });
 </script>
 
-<header class="page-head">
-  <div class="page-title">
-    <span class="page-icon"><Icon name="eye-off" size={20} /></span>
-    <h1>Ignore</h1>
-    <Info><p>Files that must never be committed, depending on who owns the repo and whether it's public. Checked on every commit and push; .gitignore syntax, ! to allow.</p></Info>
-  </div>
-  <Toggle checked={ig.enabled} onchange={(v) => (config.ignore.enabled = v)} label={ig.enabled ? 'Checking' : 'Off'} />
-</header>
+<PageHead title="Ignore" icon="eye-off" info="Paths that must never be committed. Scoped by owner and visibility. .gitignore syntax; ! allows.">
+  {#snippet actions()}
+    <Toggle checked={ig.enabled} onchange={(v) => (config.ignore.enabled = v)} label={ig.enabled ? 'On' : 'Off'} />
+  {/snippet}
+</PageHead>
 
 <div class="split" class:dim={!ig.enabled}>
   <div class="col">
-    <Card title="How it works" icon="sliders">
+    <Card title="How it works" icon="sliders" raised>
       <Field label="When a listed file is staged" info="Fix leaves it out of the commit and adds it to the repo's local exclude list. At push time listed files always block (history can't be fixed silently).">
         <Segmented size="sm" value={ig.mode} onchange={(m) => (config.ignore.mode = m)}
           options={[{ id: 'fix', label: 'Leave out', icon: 'wrench' }, { id: 'block', label: 'Block', icon: 'x' }, { id: 'warn', label: 'Warn', icon: 'alert' }]} />
@@ -65,20 +62,16 @@
       </Field>
     </Card>
 
-    {#each LISTS as l}
-      <Card title={l.label} icon={l.icon} info={l.info}>
+    {#each LISTS as l, i}
+      <Card title={l.label} icon={l.icon} info={l.info} quiet={i > 0} raised={i === 0}>
         <ChipList mono items={ig[l.key]} empty="Nothing listed" placeholder={'.env\n*.pem\n!.env.example'} onchange={(v) => (config.ignore[l.key] = v)} />
       </Card>
     {/each}
   </div>
 
   <div class="col">
-    <section class="card sticky">
-      <header class="card-head">
-        <div class="card-title"><span class="card-icon"><Icon name="search" size={16} /></span><h2>Try it</h2>
-          <Info><p>Pick a repo and see which files would be left out.</p></Info>
-        </div>
-      </header>
+    <Card title="Try it" icon="search" info="Pick a repo and see which files would be left out." emphasis>
+      <div class="sticky-inner">
       <Field label="Repo" stacked>
         <input class="full" bind:value={remote} placeholder={`git@github.com:${ig.github_user || 'you'}/project.git`} />
       </Field>
@@ -97,6 +90,7 @@
           {/each}
         </ul>
       {/if}
-    </section>
+      </div>
+    </Card>
   </div>
 </div>

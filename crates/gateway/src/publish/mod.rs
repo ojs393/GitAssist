@@ -4,7 +4,9 @@ mod checks;
 mod mirror;
 mod preflight;
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
 
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
@@ -37,6 +39,30 @@ pub enum Selection<'a> {
     Label(&'a str),
     All,
     Remotes(Vec<&'a str>),
+}
+
+fn active_publishes() -> &'static Mutex<HashSet<String>> {
+    static LOCKS: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+    LOCKS.get_or_init(|| Mutex::new(HashSet::new()))
+}
+
+fn lock_repo(repo: &Path) -> Result<String> {
+    let key = repo
+        .canonicalize()
+        .unwrap_or_else(|_| repo.to_path_buf())
+        .to_string_lossy()
+        .into_owned();
+    let mut set = active_publishes().lock().unwrap_or_else(|e| e.into_inner());
+    if !set.insert(key.clone()) {
+        bail!("a publish is already running for this repo; wait and retry");
+    }
+    Ok(key)
+}
+
+fn unlock_repo(key: &str) {
+    if let Ok(mut set) = active_publishes().lock() {
+        set.remove(key);
+    }
 }
 
 fn resolve<'a>(data: &'a RepoTargets, sel: Selection<'a>) -> Result<Vec<&'a PublishTarget>> {
@@ -98,6 +124,18 @@ fn push_one(repo: &Path, target: &PublishTarget, branch: &str) -> Result<String>
 }
 
 pub fn publish(
+    paths: &Paths,
+    repo: &Path,
+    cfg: &gitassist_core::Config,
+    sel: Selection<'_>,
+) -> Result<PublishReport> {
+    let lock_key = lock_repo(repo)?;
+    let result = publish_inner(paths, repo, cfg, sel);
+    unlock_repo(&lock_key);
+    result
+}
+
+fn publish_inner(
     paths: &Paths,
     repo: &Path,
     cfg: &gitassist_core::Config,

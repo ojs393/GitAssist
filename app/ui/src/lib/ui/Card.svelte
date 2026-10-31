@@ -2,10 +2,23 @@
   import Icon from './Icon.svelte';
   import Info from './Info.svelte';
   // Collapsible cards let you hide what you don't need; the state lasts for the session.
-  let { title = '', icon = '', info = '', actions, children, tight = false, collapsible = false, collapsed = $bindable(false) } = $props();
+  let {
+    title = '',
+    icon = '',
+    info = '',
+    actions,
+    children,
+    tight = false,
+    collapsible = false,
+    collapsed = $bindable(false),
+    bordered = false,
+    quiet = false,
+    raised = false,
+    emphasis = false,
+  } = $props();
 </script>
 
-<section class="card" class:tight class:collapsed>
+<section class="card" class:tight class:collapsed class:bordered class:quiet class:raised class:emphasis>
   {#if title}
     <header class="card-head">
       <div class="card-title">

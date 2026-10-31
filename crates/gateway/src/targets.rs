@@ -167,12 +167,24 @@ pub fn save(paths: &Paths, repo: &Path, data: &RepoTargets) -> Result<()> {
     let f = file(paths, repo);
     let mut owned = data.clone();
     owned.repo_path = repo.to_string_lossy().into_owned();
+    if owned.targets.len() > 32 {
+        bail!("at most 32 publish targets per repo");
+    }
+    let mut seen_labels = std::collections::HashSet::new();
+    let mut seen_remotes = std::collections::HashSet::new();
     for t in &mut owned.targets {
         if t.id.is_empty() {
             t.id = PublishTarget::new_id();
         }
         t.label = safe_ref_part(&t.label, "label")?;
         t.remote_name = safe_remote_name(&t.remote_name)?;
+        let label_key = t.label.to_ascii_lowercase();
+        if !seen_labels.insert(label_key) {
+            bail!("duplicate target label `{}`", t.label);
+        }
+        if !seen_remotes.insert(t.remote_name.clone()) {
+            bail!("duplicate remote name `{}`", t.remote_name);
+        }
         if t.url.len() > 2048 {
             bail!("target `{}` URL is too long", t.label);
         }
