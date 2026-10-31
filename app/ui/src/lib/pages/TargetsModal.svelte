@@ -204,43 +204,58 @@
             <button class="icon-btn" type="button" aria-label="Remove" onclick={() => draft.checks.commands.splice(i, 1)}><Icon name="x" size={14} /></button>
           </div>
         {/each}
-        <button type="button" class="linkish" onclick={() => draft.checks.commands.push({ name: '', shell: '', env: {} })}>+ Add command</button>
+        <button type="button" class="btn ghost sm" onclick={() => draft.checks.commands.push({ name: '', shell: '', env: {} })}><Icon name="plus" size={13} /> Add command</button>
       </Field>
     {/if}
     <div class="row" style="margin-top:1rem;gap:0.5rem">
-      <ActionButton run={async () => applyDraft()} label="Apply target" kind="primary" size="sm" />
-      <button type="button" class="ghost" onclick={() => { draft = null; tab = 'list'; }}>Back</button>
+      <ActionButton run={async () => applyDraft()} label="Apply target" kind="primary" size="sm" icon="check" />
+      <button type="button" class="btn ghost sm" onclick={() => { draft = null; tab = 'list'; }}><Icon name="chevron-left" size={14} /> Back</button>
     </div>
   {:else}
     {#if remotes.length}
-      <p class="muted small">Import from existing remotes:</p>
+      <p class="muted-2 small">Import from existing remotes</p>
       <div class="row" style="flex-wrap:wrap;gap:0.4rem;margin-bottom:0.75rem">
         {#each remotes as r}
-          <button type="button" class="pill" onclick={() => importRemote(r)}>{r.name}</button>
+          <button type="button" class="btn ghost sm" onclick={() => importRemote(r)}><Icon name="link" size={13} /> {r.name} <span class="go"><Icon name="chevron-right" size={13} /></span></button>
         {/each}
       </div>
     {/if}
     {#if !data.targets.length}
       <div class="empty"><Icon name="upload" size={22} /><p>No targets yet. Add personal, public, or org.</p></div>
     {:else}
-      <ul class="repo-rows">
+      <ul class="target-edit-list">
         {#each data.targets as t, i}
-          <li class="repo-row">
+          <li class="target-edit-row">
+            <span class="agent-glyph"><Icon name={t.role === 'public' ? 'eye' : t.role === 'organization' ? 'building' : 'user'} size={15} /></span>
             <span class="repo-name">
               <strong>{t.label}</strong>
-              <span class="muted small">{t.role} · {t.remote_name} · {t.push_policy}</span>
+              <span class="muted-2 small">{t.role} · {t.remote_name} · {t.push_policy}</span>
             </span>
             <span class="repo-end">
-              <button type="button" class="ghost" onclick={() => openEdit(i)}>Edit</button>
-              <button type="button" class="ghost" onclick={() => removeAt(i)}>Remove</button>
+              <button type="button" class="btn ghost sm" onclick={() => openEdit(i)}>Edit <span class="go"><Icon name="chevron-right" size={13} /></span></button>
+              <button type="button" class="btn danger sm" onclick={() => removeAt(i)}><Icon name="trash" size={13} /></button>
             </span>
           </li>
         {/each}
       </ul>
     {/if}
     <div class="row" style="margin-top:1rem;gap:0.5rem">
-      <ActionButton run={async () => openNew()} label="Add target" icon="plus" size="sm" />
-      <ActionButton run={save} label="Save" kind="primary" size="sm" doneLabel="Saved" />
+      <ActionButton run={async () => openNew()} label="Add target" icon="plus" size="sm" go={true} />
+      <ActionButton run={save} label="Save" kind="primary" size="sm" icon="check" doneLabel="Saved" />
     </div>
   {/if}
 </Modal>
+
+<style>
+  .target-edit-list { list-style: none; margin: 0; padding: 0; }
+  .target-edit-row {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 6px;
+    border-radius: 10px;
+  }
+  .target-edit-row:hover { background: var(--accent-softer); }
+  .target-edit-row + .target-edit-row { margin-top: 2px; }
+</style>

@@ -93,6 +93,7 @@
                   {#if t}
                     <button role="menuitem" class:active={section === id} onclick={() => go(id)}>
                       <Icon name={TAB_ICONS[id] ?? PAGES[id]?.icon} size={16} /> {t.label}
+                      <span class="go"><Icon name="chevron-right" size={14} /></span>
                     </button>
                   {/if}
                 {/each}

@@ -88,9 +88,9 @@
     </div>
     <div class="hero-actions">
       {#if !report.turned_on}
-        <button class="btn primary lg" onclick={() => (wizard = true)}><Icon name="rocket" size={16} /> Set up</button>
+        <button class="btn primary lg" onclick={() => (wizard = true)}><Icon name="rocket" size={16} /> Set up <span class="go"><Icon name="chevron-right" size={16} /></span></button>
       {:else if problems && config.enabled}
-        <ActionButton run={fixAll} label="Fix all" icon="wrench" doneLabel="Fixed" onresult={refresh} />
+        <ActionButton run={fixAll} label="Fix all" icon="wrench" doneLabel="Fixed" onresult={refresh} go={true} />
       {/if}
       <button class="icon-btn" title="Check again" aria-label="Check again" onclick={refresh}><Icon name="refresh" size={16} /></button>
     </div>
@@ -117,7 +117,7 @@
     </div>
   {/if}
 
-  <Card title="Agents" icon="sparkle" info="GitAssist gives each agent your rules and switches off its co-author line. Commits from any agent are cleaned either way. Cloud agents run on remote servers and only follow the rules they are given.">
+  <Card title="Agents" icon="sparkle" info="GitAssist gives each agent your rules and switches off its co-author line. Commits from any agent are cleaned either way. Cloud agents run on remote servers and only follow the rules they are given." raised>
     {#snippet actions()}<span class="muted small">{installed.length} found</span>{/snippet}
     <ul class="agent-rows">
       {#each installed as a}
@@ -133,7 +133,7 @@
             {#if a.status === 'current'}
               <ActionButton run={() => api.removeAdapter(a.id)} label="Remove" kind="ghost" size="sm" doneLabel="Removed" onresult={refresh} />
             {:else}
-              <ActionButton run={() => api.applyAdapter(a.id)} label="Apply" size="sm" doneLabel="Applied" onresult={refresh} />
+              <ActionButton run={() => api.applyAdapter(a.id)} label="Apply" size="sm" doneLabel="Applied" onresult={refresh} go={true} />
             {/if}
           </span>
         </li>
@@ -145,7 +145,7 @@
   </Card>
 
   {#if report.repos.some((r) => !r.connected)}
-    <Card title="Repos with their own hooks" icon="link" info="These repos use Husky or lefthook, so git runs their hooks instead of GitAssist's until you connect them.">
+    <Card title="Repos with their own hooks" icon="link" info="These repos use Husky or lefthook, so git runs their hooks instead of GitAssist's until you connect them." emphasis>
       <ul class="agent-rows">
         {#each report.repos.filter((r) => !r.connected) as r}
           <li class="agent-row">
@@ -160,10 +160,10 @@
     </Card>
   {/if}
 
-  <button class="card link-card" onclick={() => onnavigate?.('repos')}>
-    <span class="agent-glyph"><Icon name="folder" size={16} /></span>
-    <span class="grow"><strong>Your repos</strong><span class="muted small"> · where you push and when</span></span>
-    <Icon name="chevron-right" size={16} />
+  <button class="card link-card" type="button" onclick={() => onnavigate?.('repos')}>
+    <span class="agent-glyph"><Icon name="layers" size={16} /></span>
+    <span class="grow"><strong>Repos</strong><span class="muted-2 small"> · remotes & publish</span></span>
+    <span class="go"><Icon name="chevron-right" size={16} /></span>
   </button>
 
   {#if checkedAt}<p class="checked muted small">Checked at {checkedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · <button class="link-text" onclick={() => (wizard = true)}>Run setup again</button></p>{/if}

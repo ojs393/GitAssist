@@ -2,8 +2,8 @@
   import { onMount } from 'svelte';
   import { api, MODES, formatBytes } from '../api.js';
   import Icon from '../ui/Icon.svelte';
-  import Info from '../ui/Info.svelte';
   import Card from '../ui/Card.svelte';
+  import PageHead from '../ui/PageHead.svelte';
   import Field from '../ui/Field.svelte';
   import Toggle from '../ui/Toggle.svelte';
   import Segmented from '../ui/Segmented.svelte';
@@ -45,32 +45,26 @@
 
 <Setup open={wizard} bind:config {report} onclose={() => (wizard = false)} ondone={() => (wizard = false)} />
 
-<header class="page-head">
-  <div class="page-title">
-    <span class="page-icon"><Icon name="gear" size={20} /></span>
-    <h1>Settings</h1>
-    <Info><p>Defaults every tab uses, plus storage and install options.</p></Info>
-  </div>
-</header>
+<PageHead title="Settings" icon="gear" info="Identity, co-authors, safety, storage, install." />
 
 <Tabs options={SECTIONS} value={section} onchange={(v) => (section = v)} />
 
 {#if section === 'you'}
   <div class="split even">
-    <Card title="You" icon="user">
+    <Card title="You" icon="user" raised>
       <Field label="Name"><input class="short" bind:value={config.global.identity.author_name} placeholder="Your name or handle" /></Field>
       <Field label="Email" info="Your GitHub no-reply address keeps your email private."><input class="short" bind:value={config.global.identity.author_email} placeholder="you@users.noreply.github.com" /></Field>
       <Field label="Always make me the author" info={idSet ? 'If an agent commits under another name, GitAssist changes it to you straight away.' : 'Fill in name and email first.'}>
         <Toggle checked={g.identity.enforce_author} disabled={!idSet} onchange={(v) => (config.global.identity.enforce_author = v)} />
       </Field>
     </Card>
-    <Card title="Voice" icon="voice" info="Told to every agent. GitAssist never rewrites your words.">
+    <Card title="Voice" icon="voice" info="Told to every agent. GitAssist never rewrites your words." quiet>
       <StyleFields bind:style={config.global.style} />
     </Card>
   </div>
 {:else if section === 'coauthor'}
   <div class="split even">
-    <Card title="Agent co-author lines" icon="bot">
+    <Card title="Agent co-author lines" icon="bot" raised>
       <Field label="When an agent adds one" info="Fix removes it, Block makes the agent remove it, Warn only reports it.">
         <Segmented size="sm" options={MODES} value={g.trailers.strip_mode} onchange={(m) => (config.global.trailers.strip_mode = m)} />
       </Field>
@@ -78,7 +72,7 @@
         <ChipList mono items={g.trailers.strip_patterns} onchange={(v) => (config.global.trailers.strip_patterns = v.length ? v : [...DEFAULT_PATTERNS])} />
       </Field>
     </Card>
-    <Card title="Your own lines" icon="pen">
+    <Card title="Your own lines" icon="pen" quiet>
       <Field label="Add to every commit" info="For example your own Co-authored-by or Signed-off-by." stacked>
         <ChipList mono items={g.trailers.add} empty="Nothing added" placeholder={'Signed-off-by: You <email>'} onchange={(v) => (config.global.trailers.add = v)} />
       </Field>
@@ -88,7 +82,7 @@
     </Card>
   </div>
 {:else if section === 'safety'}
-  <Card title="Safety" icon="lock">
+  <Card title="Safety" icon="lock" raised>
     <Field label="Fix itself" info="Every 15 minutes and at login, puts back anything another tool changed.">
       <Toggle checked={config.auto_repair} onchange={(v) => (config.auto_repair = v)} />
     </Field>
@@ -103,7 +97,7 @@
     </Field>
   </Card>
 {:else if section === 'storage'}
-  <Card title="Storage" icon="storage" info="Settings and setup are never touched by these buttons.">
+  <Card title="Storage" icon="storage" info="Settings and setup are never touched by these buttons." quiet>
     {#snippet actions()}<button class="icon-btn" aria-label="Refresh" onclick={loadUsage}><Icon name="refresh" size={15} /></button>{/snippet}
     {#if usage}
       <Field label="Activity log" info="Capped at about 15 MB; older entries roll off automatically.">
@@ -122,11 +116,15 @@
   </Card>
 {:else}
   <div class="split even">
-    <Card title="Setup" icon="rocket">
-      <Field label="Walk through setup again"><button class="btn sm" onclick={openSetup}><Icon name="rocket" size={14} /> Open</button></Field>
-      <Field label="Check and repair everything" info="Reinstalls anything that is missing or was changed."><ActionButton run={() => api.repair()} label="Repair" size="sm" icon="wrench" doneLabel="Done" /></Field>
+    <Card title="Setup" icon="rocket" emphasis>
+      <Field label="Walk through setup again">
+        <button class="btn sm" onclick={openSetup}><Icon name="rocket" size={14} /> Open <span class="go"><Icon name="chevron-right" size={14} /></span></button>
+      </Field>
+      <Field label="Check and repair everything" info="Reinstalls anything that is missing or was changed.">
+        <ActionButton run={() => api.repair()} label="Repair" size="sm" icon="wrench" doneLabel="Done" />
+      </Field>
     </Card>
-    <Card title="Uninstall" icon="trash" info="Puts git, your shell and every agent's files back exactly as they were before GitAssist.">
+    <Card title="Uninstall" icon="trash" info="Puts git, your shell and every agent's files back exactly as they were before GitAssist." quiet>
       <Field label="Remove GitAssist from this computer">
         <ActionButton run={async () => { if (!confirm('Remove GitAssist from git, gh and every agent?')) throw new Error('Cancelled'); await api.uninstall(); }} label="Uninstall" kind="danger" size="sm" doneLabel="Removed" />
       </Field>

@@ -4,6 +4,7 @@
   import Icon from '../ui/Icon.svelte';
   import Info from '../ui/Info.svelte';
   import Card from '../ui/Card.svelte';
+  import PageHead from '../ui/PageHead.svelte';
   import Field from '../ui/Field.svelte';
   import Toggle from '../ui/Toggle.svelte';
   import Segmented from '../ui/Segmented.svelte';
@@ -112,14 +113,11 @@
   </Field>
 {/snippet}
 
-<header class="page-head">
-  <div class="page-title">
-    <span class="page-icon"><Icon name={TAB_ICONS[tab.id]} size={20} /></span>
-    <h1>{tab.label}</h1>
-    <Info><p>{ABOUT[tab.id]}</p></Info>
-  </div>
-  <Toggle checked={enabled} onchange={(v) => (config.tabs[tab.id].enabled = v)} label={enabled ? 'Checking' : 'Off'} />
-</header>
+<PageHead title={tab.label} icon={TAB_ICONS[tab.id]} info={ABOUT[tab.id]}>
+  {#snippet actions()}
+    <Toggle checked={enabled} onchange={(v) => (config.tabs[tab.id].enabled = v)} label={enabled ? 'On' : 'Off'} />
+  {/snippet}
+</PageHead>
 
 {#if siblings.length > 1}
   <div class="subtabs">
@@ -135,7 +133,7 @@
 <div class="split {previewSize}" class:dim={!enabled}>
   <div class="col">
     {#if section === 'quick'}
-    <Card title="Quick setup" icon="sparkle" info="One click sets the length rules for this tab. Fine-tune them in Length.">
+    <Card title="Quick setup" icon="sparkle" info="One click sets the length rules for this tab. Fine-tune them in Length." emphasis>
       <div class="choices">
         {#each presetsLen as p}<Choice icon={p.icon} title={p.label} note={p.note} selected={activePreset === p.id} onclick={() => applyPreset(p)} />{/each}
       </div>
