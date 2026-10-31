@@ -62,7 +62,6 @@
       return !q || [r.name, r.slug, r.branch, ...r.remotes.map((x) => x.url)].join(' ').toLowerCase().includes(q);
     }),
   );
-  const pushed = $derived((repos ?? []).map((r) => r.last_push ?? 0).reduce((a, b) => Math.max(a, b), 0));
 </script>
 
 {#if selected}
@@ -89,12 +88,6 @@
 {#if !repos}
   <div class="loading"><span class="spinner"></span></div>
 {:else}
-  <div class="stat-row">
-    <div class="stat emphasis"><span class="stat-label"><Icon name="layers" size={13} /> repos</span><span class="stat-num">{repos.length}</span></div>
-    <div class="stat quiet"><span class="stat-label"><Icon name="globe" size={13} /> with remote</span><span class="stat-num">{repos.filter((r) => r.slug).length}</span></div>
-    <div class="stat quiet"><span class="stat-label"><Icon name="upload" size={13} /> last push</span><span class="stat-num">{pushed ? relativeTime(pushed) : 'none yet'}</span></div>
-  </div>
-
   <div class="toolbar">
     <Segmented size="sm" value={filter} onchange={(f) => (filter = f)}
       options={[{ id: 'all', label: 'All' }, { id: 'github', label: 'With a remote', icon: 'upload' }, { id: 'local', label: 'Local only', icon: 'folder' }, { id: 'hooks', label: 'Own hooks', icon: 'link' }]} />

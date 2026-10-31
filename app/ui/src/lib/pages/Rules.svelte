@@ -58,15 +58,14 @@
   const reset = (field) => delete config.tabs[tab.id][field];
   const modes = (allowFix) => MODES.filter((m) => allowFix || m.id !== 'fix');
 
-  // svelte-ignore state_referenced_locally
-  let sampleBody = $state(SAMPLES[tab.id] ?? '');
-  // svelte-ignore state_referenced_locally
-  let sampleTitle = $state(SAMPLE_TITLES[tab.id] ?? '');
+  let sampleBody = $state('');
+  let sampleTitle = $state('');
   let result = $state(null);
   let previewError = $state('');
   let editTemplate = $state(false);
   let section = $state('quick');
   let previewSize = $state('normal');
+  let lastTabId = $state('');
   const SECTIONS = [
     { id: 'quick', label: 'Quick', icon: 'sparkle' },
     { id: 'length', label: 'Length', icon: 'ruler' },
@@ -83,16 +82,40 @@
   function resetTab() {
     config.tabs[tab.id] = {};
   }
+  function loadSampleForTab(id) {
+    sampleBody = SAMPLES[id] ?? '';
+    sampleTitle = SAMPLE_TITLES[id] ?? '';
+  }
   let ptimer;
+
+  // Reset sample + section when the rules tab changes so Preview matches this page.
+  $effect(() => {
+    const id = tab.id;
+    if (id === lastTabId) return;
+    lastTabId = id;
+    section = 'quick';
+    editTemplate = false;
+    loadSampleForTab(id);
+  });
+
+  // On Co-authors, ensure the sample still has an attribution line so Preview shows the strip.
+  $effect(() => {
+    if (section !== 'coauthor') return;
+    const body = sampleBody;
+    if (/co-authored-by:|generated with|made-with/i.test(body)) return;
+    loadSampleForTab(tab.id);
+  });
 
   $effect(() => {
     const snapshot = JSON.parse(JSON.stringify(config));
     const body = sampleBody;
     const title = sampleTitle;
+    const tabId = tab.id;
+    const withTitle = showTitle;
     clearTimeout(ptimer);
     ptimer = setTimeout(async () => {
       try {
-        result = await api.preview(snapshot, tab.id, showTitle ? title : null, body);
+        result = await api.preview(snapshot, tabId, withTitle ? title : null, body);
         previewError = '';
       } catch (e) {
         previewError = String(e);
@@ -173,7 +196,7 @@
 <div class="split {previewSize}" class:dim={!enabled}>
   <div class="col">
     {#if section === 'quick'}
-    <Card title="Quick setup" icon="sparkle" info="Length presets. Fine-tune in Length.">
+    <Card title="Quick setup" icon="sparkle" info="Length presets. Fine-tune in Length." collapsible>
       <div class="preset-row">
         {#each presetsLen as p}
           <button type="button" class="preset-chip" class:on={activePreset === p.id} onclick={() => applyPreset(p)}>
@@ -181,7 +204,6 @@
           </button>
         {/each}
       </div>
-      <Field label="Remove agent co-author lines"><Toggle checked={tc.strip_trailers ?? true} onchange={(v) => (config.tabs[tab.id].strip_trailers = v)} /></Field>
       {#if hasConventional}
         <Field label="Require feat: / fix: prefix"><Toggle checked={conventional.value === 'required'} onchange={(v) => (config.tabs[tab.id].conventional = { value: v ? 'required' : 'off', mode: 'block' })} /></Field>
       {/if}
@@ -190,7 +212,7 @@
     </Card>
     {/if}
     {#if section === 'length'}
-    <Card title="Length" icon="ruler">
+    <Card title="Length" icon="ruler" collapsible>
       {#if tab.has_title}{@render limit('subject_max', `${titleWord} max`, 'Longest allowed first line. Warn or Block only: shortening a title needs rewriting.', false)}{/if}
       {@render limit('total_max', 'Whole message max', 'Title and body together, including any lines GitAssist adds.', true)}
       {@render limit('body_max', 'Body max', 'Fix cuts the body and adds …; Block makes the agent condense it.', true)}
@@ -199,7 +221,7 @@
     </Card>
     {/if}
     {#if section === 'layout'}
-    <Card title="Layout" icon="layout">
+    <Card title="Layout" icon="layout" collapsible>
       {#if hasConventional}
         <Field label="Prefix like feat: / fix:" info="Conventional commits: type, optional (scope), colon, summary.">
           <div class="limit">
@@ -239,7 +261,7 @@
     </Card>
     {/if}
     {#if section === 'words'}
-    <Card title="Words" icon="tag">
+    <Card title="Words" icon="tag" collapsible>
       <Field label="Banned phrases" info="Case-insensitive. Block makes the agent reword." stacked>
         <ChipList items={banned.value} empty="None" placeholder={'As an AI\nThis PR\ncomprehensive'} onchange={(v) => (config.tabs[tab.id].banned_phrases = { ...banned, value: v })} />
       </Field>
@@ -249,7 +271,7 @@
     </Card>
     {/if}
     {#if section === 'coauthor'}
-    <Card title="Co-author lines" icon="user">
+    <Card title="Co-author lines" icon="user" collapsible>
       <Field label="Remove agent attribution" info="Co-authored-by, Made-with and 'Generated with' lines, using the patterns in Defaults.">
         <Toggle checked={tc.strip_trailers ?? true} onchange={(v) => (config.tabs[tab.id].strip_trailers = v)} />
       </Field>
@@ -264,7 +286,7 @@
     </Card>
     {/if}
     {#if section === 'voice'}
-    <Card title="Voice" icon="voice">
+    <Card title="Voice" icon="voice" collapsible>
       <Field label="Own style for this tab" info="Off: uses the style from Defaults. Style is given to agents as instructions.">
         <Toggle checked={tc.style != null} onchange={(v) => { if (v) config.tabs[tab.id].style = { ...config.global.style }; else delete config.tabs[tab.id].style; }} />
       </Field>

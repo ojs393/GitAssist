@@ -147,23 +147,19 @@
       {#each report.items as i}
         {@const st = STATE[i.state]}
         <div class="status-cell">
-          <div class="status-cell-top">
-            <span class="status-icon {st[0]}"><Icon name={ITEM_ICONS[i.id] ?? 'info'} size={13} /></span>
-            <div class="status-controls">
-              {#if itemToggleable(i)}
-                <Toggle small checked={itemOn(i)} label={itemOn(i) ? 'On' : 'Off'} onchange={(v) => setItem(i, v)} />
-              {:else}
-                <span class="status-state {st[0]}">{st[1]}</span>
-              {/if}
-              <Info align="right"><p>{i.summary}</p>{#each i.details as d}<p class="small muted">{d}</p>{/each}</Info>
-            </div>
-          </div>
+          <span class="status-icon {st[0]}"><Icon name={ITEM_ICONS[i.id] ?? 'info'} size={13} /></span>
           <div class="status-label">{i.label}</div>
-          {#if i.state === 'attention'}
-            <div class="status-cell-action">
+          <div class="status-controls">
+            {#if i.state === 'attention'}
               <ActionButton run={() => api.install(i.id)} label="Fix" size="sm" doneLabel="On" onresult={refresh} />
-            </div>
-          {/if}
+            {/if}
+            {#if itemToggleable(i)}
+              <Toggle small checked={itemOn(i)} label={itemOn(i) ? 'On' : 'Off'} onchange={(v) => setItem(i, v)} />
+            {:else}
+              <span class="status-state {st[0]}">{st[1]}</span>
+            {/if}
+            <Info align="right"><p>{i.summary}</p>{#each i.details as d}<p class="small muted">{d}</p>{/each}</Info>
+          </div>
         </div>
       {/each}
     </section>
