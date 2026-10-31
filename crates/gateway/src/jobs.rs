@@ -213,7 +213,20 @@ fn update_step(job: &mut Job, step_id: &str, status: StepStatus, message: impl I
 }
 
 /// Start a publish job. `which` is a label or `--all`.
+fn ensure_no_running(paths: &Paths) -> Result<()> {
+    let running = load_store(paths)
+        .jobs
+        .iter()
+        .filter(|j| j.status == JobStatus::Running)
+        .count();
+    if running >= 2 {
+        bail!("already {running} jobs running; wait or cancel one first");
+    }
+    Ok(())
+}
+
 pub fn start_publish(paths: &Paths, repo: &Path, which: &str) -> Result<Job> {
+    ensure_no_running(paths)?;
     let data = targets::load(paths, repo);
     let which = which.trim();
     let chosen: Vec<&targets::PublishTarget> = if which == "--all" || which == "all" {
@@ -259,6 +272,7 @@ pub fn start_publish(paths: &Paths, repo: &Path, which: &str) -> Result<Job> {
 }
 
 pub fn start_fix_all(paths: &Paths, step_labels: Vec<(String, String)>) -> Result<Job> {
+    ensure_no_running(paths)?;
     let t = now();
     let id = new_id();
     let job = Job {
@@ -288,6 +302,7 @@ pub fn start_fix_all(paths: &Paths, step_labels: Vec<(String, String)>) -> Resul
 }
 
 pub fn start_apply_adapter(paths: &Paths, adapter_id: &str, name: &str) -> Result<Job> {
+    ensure_no_running(paths)?;
     let t = now();
     let id = new_id();
     let job = Job {
@@ -500,5 +515,32 @@ mod tests {
         assert_eq!(loaded.steps[0].status, StepStatus::Done);
         assert_eq!(loaded.steps[1].status, StepStatus::Pending);
         pause_running(&p).unwrap();
+    }
+
+    #[test]
+    fn caps_concurrent_running_jobs() {
+        let (_d, p) = paths();
+        let t = now();
+        for i in 0..2 {
+            upsert(
+                &p,
+                Job {
+                    id: format!("r{i}"),
+                    kind: JobKind::FixAll,
+                    status: JobStatus::Running,
+                    started_at: t,
+                    updated_at: t,
+                    repo: None,
+                    label: "fix".into(),
+                    which: String::new(),
+                    adapter_id: None,
+                    steps: vec![],
+                    error: None,
+                },
+            )
+            .unwrap();
+        }
+        let err = ensure_no_running(&p).unwrap_err().to_string();
+        assert!(err.contains("already"), "{err}");
     }
 }
