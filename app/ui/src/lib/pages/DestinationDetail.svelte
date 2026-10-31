@@ -21,16 +21,22 @@
 
   let ticket = 0;
   let syncTicket = 0;
+  let saveTicket = 0;
 
   const repoName = $derived((doc?.repo_path || '').split(/[\\/]/).filter(Boolean).pop() || '');
   const syncLine = $derived.by(() => {
+    if (syncError) return syncError;
     if (sync) {
       const where = sync.ref_name || [sync.remote, sync.branch].filter(Boolean).join('/');
       const counts = `${sync.ahead ?? 0} ahead · ${sync.behind ?? 0} behind`;
       return where ? `${counts} · ${where}` : counts;
     }
-    return syncError || 'No sync yet';
+    return 'No sync yet';
   });
+
+  function pageLeft(myPage, key, id) {
+    return myPage !== ticket || repoKey !== key || targetId !== id;
+  }
 
   function message(e) {
     return String(e).replace(/^Error: /, '');
@@ -47,6 +53,7 @@
   async function load(key, id) {
     const my = ++ticket;
     loading = true;
+    saving = false;
     error = '';
     missing = '';
     saveNote = '';
@@ -94,21 +101,24 @@
 
   async function refreshSync() {
     const my = ++syncTicket;
+    const myPage = ticket;
+    const key = repoKey;
+    const id = targetId;
     syncError = '';
-    const path = doc?.repo_path;
-    const remote = target?.remote_name?.trim() ?? '';
-    if (!path) throw new Error('Repo path is missing.');
-    if (!remote) throw new Error('Set a remote name to compare.');
     try {
+      const path = doc?.repo_path;
+      const remote = target?.remote_name?.trim() ?? '';
+      if (!path) throw new Error('Repo path is missing.');
+      if (!remote) throw new Error('Set a remote name to compare.');
       const work = await api.repoWork(path);
-      if (my !== syncTicket) return;
+      if (my !== syncTicket || pageLeft(myPage, key, id)) return;
       const branch = (work?.branch || '').trim();
       if (!branch) throw new Error('No current branch to compare.');
       const row = await api.repoWorkRemote(path, remote, branch);
-      if (my !== syncTicket) return;
+      if (my !== syncTicket || pageLeft(myPage, key, id)) return;
       sync = row;
     } catch (e) {
-      if (my !== syncTicket) return;
+      if (my !== syncTicket || pageLeft(myPage, key, id)) return;
       sync = null;
       syncError = message(e);
       throw new Error(syncError);
@@ -116,6 +126,9 @@
   }
 
   async function persist() {
+    const myPage = ticket;
+    const key = repoKey;
+    const id = targetId;
     if (!doc || !target) throw new Error('Nothing to save.');
     if (saving) throw new Error('Save already in progress.');
     const label = target.label.trim();
@@ -126,7 +139,7 @@
       throw new Error(msg);
     }
     const next = structuredClone($state.snapshot(doc));
-    const i = next.targets.findIndex((t) => t.id === targetId);
+    const i = next.targets.findIndex((t) => t.id === id);
     if (i < 0) throw new Error('This destination is not in the repo.');
     const draft = structuredClone($state.snapshot(target));
     draft.label = label;
@@ -134,44 +147,58 @@
     next.targets[i] = draft;
     const picked = typeof defaultTarget === 'string' ? defaultTarget.trim() : '';
     next.default_target = picked || null;
+    const mySave = ++saveTicket;
     saving = true;
     error = '';
     try {
       const notes = await api.targetsSave(next.repo_path, next);
-      const fresh = await api.targetsGetByKey(repoKey);
+      if (pageLeft(myPage, key, id)) return false;
+      const fresh = await api.targetsGetByKey(key);
+      if (pageLeft(myPage, key, id)) return false;
       if (!fresh) throw new Error('Saved, but the targets file is missing.');
-      const found = (fresh.targets ?? []).find((t) => t.id === targetId);
+      const found = (fresh.targets ?? []).find((t) => t.id === id);
       if (!found) throw new Error('Saved, but this destination is missing.');
       normalize(found);
       doc = fresh;
-      target = structuredClone(found);
+      target = structuredClone($state.snapshot(found));
       defaultTarget = fresh.default_target ?? null;
       saveNote = notes?.length ? notes.join('; ') : 'Saved.';
+      return true;
     } catch (e) {
+      if (pageLeft(myPage, key, id)) return false;
       error = message(e);
       throw e;
     } finally {
-      saving = false;
+      if (mySave === saveTicket) saving = false;
     }
   }
 
   async function setEnabled(v) {
     if (!target || v === target.enabled) return;
     const prev = target.enabled;
+    const key = repoKey;
+    const id = targetId;
     target.enabled = v;
     try {
-      await persist();
+      const saved = await persist();
+      if (!saved) return;
     } catch (e) {
+      if (repoKey !== key || targetId !== id) return;
       if (target) target.enabled = prev;
       error = message(e);
     }
   }
 
   async function push() {
-    await persist();
+    const myPage = ticket;
+    const key = repoKey;
+    const id = targetId;
+    const saved = await persist();
+    if (!saved || pageLeft(myPage, key, id) || !doc || !target) return;
     if (!target.enabled) throw new Error('Resume this destination before pushing.');
     const label = target.label.trim();
     const job = await api.jobStartPublish(doc.repo_path, label);
+    if (pageLeft(myPage, key, id)) return;
     pushMsg = `Queued ${job.label}. Watch Overview → Runs.`;
   }
 </script>
