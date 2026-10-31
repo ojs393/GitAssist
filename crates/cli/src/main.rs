@@ -248,8 +248,7 @@ fn run(args: Vec<String>) -> Result<ExitCode> {
                 let label = args
                     .iter()
                     .skip(1)
-                    .filter(|a| !a.starts_with('-') && a.as_str() != skip)
-                    .next()
+                    .find(|a| !a.starts_with('-') && a.as_str() != skip)
                     .cloned()
                     .or_else(|| targets::load(&paths, &repo).default_target)
                     .context("push needs a target label or --all")?;

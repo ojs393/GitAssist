@@ -1,17 +1,16 @@
-# Everything needed to build GitAssist on another machine is committed; this
-# keeps out build output, caches, local tooling and anything personal.
-
-# Build output
-/target
-/app/ui/dist
-/app/src-tauri/gen
-/app/src-tauri/binaries
+# Build output — not needed to use or rebuild from a clean clone
+/target/
+/app/ui/dist/
+/app/src-tauri/gen/
+/app/src-tauri/binaries/
 *.dmg
 *.msi
 *.exe
 *.AppImage
 *.deb
 *.rpm
+*.app
+*.pkg
 
 # Dependencies and caches
 node_modules/
@@ -20,19 +19,36 @@ node_modules/
 .yarn/
 .vite/
 .cache/
+.turbo/
 *.tsbuildinfo
 npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-# Local tooling and test output
+# Test / fuzz / coverage artifacts (source tests stay in git)
 .playwright-mcp/
 playwright-report/
 test-results/
 coverage/
+.nyc_output/
+*.lcov
+lcov.info
+junit.xml
 *.profraw
+*.profdata
+cargo-test-*/
+**/snap/out/
+
+# Local tooling
+.direnv/
+.envrc
 *.log
 *.orig
 *.rej
-.direnv/
+*.bak
+*.tmp
+*.temp
+.scratch/
 
 # Editors and OS
 .idea/
@@ -48,18 +64,34 @@ coverage/
 Thumbs.db
 desktop.ini
 
-# Local agent files and secrets
+# Agents and AI local state (never ship these)
 .cursor/
 .claude/
+.codex/
+.gemini/
+.copilot/
+.github/copilot-instructions.local.md
+AGENTS.override.md
 CLAUDE.local.md
 *.local.md
 .aider*
+.continue/
+.windsurf/
+
+# Secrets and local env
 .env
 .env.*
 !.env.example
 *.pem
 *.key
 *.p12
+*.pfx
+*.keystore
+id_rsa*
+id_ed25519*
+credentials.json
+secrets.*
+.gitassist.local.toml
 
-# Internal planning notes (the README is the documentation)
+# Internal planning notes (README is the public docs)
 /docs/
