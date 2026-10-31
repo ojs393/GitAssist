@@ -33,6 +33,7 @@ export const api = {
   disconnectRepo: (path) => invoke('disconnect_repo', { path }),
   targetsGet: (path) => invoke('targets_get', { path }),
   targetsSave: (path, data) => invoke('targets_save', { path, data: plain(data) }),
+  targetsListAll: (paths) => invoke('targets_list_all', { pathsIn: paths }),
   targetsPush: (path, which) => invoke('targets_push', { path, which }),
   repoWork: (path) => invoke('repo_work', { path }),
   repoWorkRemote: (path, remote, branch) =>

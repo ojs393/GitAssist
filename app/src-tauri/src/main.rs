@@ -104,6 +104,7 @@ fn main() {
             commands::disconnect_repo,
             commands::targets_get,
             commands::targets_save,
+            commands::targets_list_all,
             commands::targets_push,
             commands::repo_work,
             commands::repo_work_remote,

@@ -160,6 +160,35 @@ pub fn load(paths: &Paths, repo: &Path) -> RepoTargets {
         })
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DestinationRow {
+    pub repo_path: String,
+    pub repo_key: String,
+    pub target: PublishTarget,
+}
+
+/// Flatten publish targets for `repo_paths`. Missing target files are skipped.
+/// Paused targets (`enabled == false`) are included.
+pub fn list_all(paths: &Paths, repo_paths: &[PathBuf]) -> Result<Vec<DestinationRow>> {
+    let mut rows = Vec::new();
+    for repo in repo_paths {
+        if !file(paths, repo).is_file() {
+            continue;
+        }
+        let data = load(paths, repo);
+        let repo_key = key_for(repo);
+        let repo_path = repo.to_string_lossy().into_owned();
+        for target in data.targets {
+            rows.push(DestinationRow {
+                repo_path: repo_path.clone(),
+                repo_key: repo_key.clone(),
+                target,
+            });
+        }
+    }
+    Ok(rows)
+}
+
 pub fn save(paths: &Paths, repo: &Path, data: &RepoTargets) -> Result<()> {
     let dir = paths.data_dir.join("targets");
     std::fs::create_dir_all(&dir).context("creating targets directory")?;
@@ -403,5 +432,51 @@ mod tests {
         save(&paths, &repo, &data).unwrap();
         let loaded = load(&paths, &repo);
         assert!(loaded.targets[0].use_mirror);
+    }
+
+    #[test]
+    fn list_all_includes_paused_and_skips_missing() {
+        let dir = tempdir().unwrap();
+        let paths = Paths::from_dirs(dir.path().join("c"), dir.path().join("d"));
+        let repo = dir.path().join("repo");
+        let missing = dir.path().join("missing");
+        std::fs::create_dir_all(&repo).unwrap();
+        std::fs::create_dir_all(&missing).unwrap();
+        let data = RepoTargets {
+            repo_path: repo.to_string_lossy().into(),
+            default_target: None,
+            targets: vec![
+                PublishTarget {
+                    id: "t1".into(),
+                    label: "personal".into(),
+                    role: TargetRole::Personal,
+                    remote_name: "origin".into(),
+                    url: "git@github.com:me/private.git".into(),
+                    enabled: true,
+                    ..Default::default()
+                },
+                PublishTarget {
+                    id: "t2".into(),
+                    label: "paused".into(),
+                    role: TargetRole::Custom,
+                    remote_name: "backup".into(),
+                    url: "git@github.com:me/other.git".into(),
+                    enabled: false,
+                    ..Default::default()
+                },
+            ],
+        };
+        save(&paths, &repo, &data).unwrap();
+        let rows = list_all(&paths, &[missing.clone(), repo.clone()]).unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].target.id, "t1");
+        assert!(rows[0].target.enabled);
+        assert_eq!(rows[1].target.id, "t2");
+        assert!(!rows[1].target.enabled);
+        assert_eq!(rows[0].repo_key, key_for(&repo));
+        assert_eq!(rows[1].repo_key, rows[0].repo_key);
+        assert_eq!(rows[0].repo_path, repo.to_string_lossy());
+        assert!(list_all(&paths, &[missing]).unwrap().is_empty());
+        assert!(list_all(&paths, &[]).unwrap().is_empty());
     }
 }

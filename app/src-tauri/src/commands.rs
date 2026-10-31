@@ -507,6 +507,16 @@ pub async fn targets_save(path: String, data: RepoTargets) -> CmdResult<Vec<Stri
 }
 
 #[tauri::command]
+pub async fn targets_list_all(paths_in: Vec<String>) -> CmdResult<Vec<targets::DestinationRow>> {
+    blocking(move || {
+        let (paths, _) = ctx()?;
+        let repos: Vec<PathBuf> = paths_in.iter().map(|p| expand(p)).collect();
+        targets::list_all(&paths, &repos).map_err(err)
+    })
+    .await
+}
+
+#[tauri::command]
 pub async fn targets_push(path: String, which: String) -> CmdResult<PublishReport> {
     blocking(move || {
         let (paths, _) = ctx()?;

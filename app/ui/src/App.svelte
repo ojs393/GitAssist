@@ -11,6 +11,9 @@
   import Branches from './lib/pages/Branches.svelte';
   import Repos from './lib/pages/Repos.svelte';
   import Activity from './lib/pages/Activity.svelte';
+  import LocalDetail from './lib/pages/LocalDetail.svelte';
+  import DestinationDetail from './lib/pages/DestinationDetail.svelte';
+  import { parseDestinationHash } from './lib/topology/destinationId.js';
 
   let config = $state(null);
   let tabs = $state([]);
@@ -25,6 +28,15 @@
   // A section is a top-level page or one rules tab (`gitassist-app --section commit`).
   let section = $state(window.__GITASSIST_SECTION__ || location.hash.slice(1) || 'overview');
   $effect(() => history.replaceState(null, '', '#' + section));
+
+  function routeOf(section) {
+    if (section === 'local') return { kind: 'local' };
+    const d = parseDestinationHash(section);
+    if (d) return { kind: 'destination', ...d };
+    return { kind: 'section', id: section || 'overview' };
+  }
+
+  const route = $derived(routeOf(section));
 
   onMount(() => {
     const onHash = () => (section = location.hash.slice(1) || 'overview');
@@ -135,7 +147,11 @@
           </div>
         </div>
       {/if}
-      {#if section === 'overview'}
+      {#if route.kind === 'local'}
+        <LocalDetail bind:config />
+      {:else if route.kind === 'destination'}
+        <DestinationDetail repoKey={route.repoKey} targetId={route.targetId} onback={() => go('overview')} />
+      {:else if section === 'overview'}
         <Overview bind:config onnavigate={go} onopenrepo={openRepo} />
       {:else if section === 'ignore'}
         <Ignore bind:config />
