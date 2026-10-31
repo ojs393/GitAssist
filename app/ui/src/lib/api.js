@@ -48,15 +48,16 @@ export const MODES = [
   { id: 'fix', label: 'Fix', icon: 'wrench', title: 'Fix it automatically' },
 ];
 
+// Top-level header links. Groups open their first page; in-page tabs switch siblings.
 export const NAV = [
   { id: 'overview', label: 'Overview', icon: 'shield' },
-  { id: 'commits', label: 'Commits', icon: 'commit', children: ['commit', 'docs_commit', 'merge'] },
-  { id: 'prs', label: 'Pull requests', icon: 'pr', children: ['pr_create', 'pr_update', 'pr_comment', 'review', 'issue'] },
-  { id: 'repogroup', label: 'Repos', icon: 'folder', children: ['repos', 'branches', 'ignore'] },
+  { id: 'commits', label: 'Commits', icon: 'commit', target: 'commit', children: ['commit', 'docs_commit', 'merge'] },
+  { id: 'prs', label: 'Pull requests', icon: 'pr', target: 'pr_create', children: ['pr_create', 'pr_update', 'pr_comment', 'review', 'issue'] },
+  { id: 'repogroup', label: 'Repos', icon: 'folder', target: 'repos', children: ['repos', 'branches', 'ignore'] },
   { id: 'activity', label: 'Activity', icon: 'activity' },
 ];
 
-// Pages that aren't rules tabs but live in a dropdown.
+// Non-rules pages that share a header group (shown as in-page tabs).
 export const PAGES = {
   repos: { label: 'Your repos', icon: 'folder' },
   branches: { label: 'Branches', icon: 'branch' },
