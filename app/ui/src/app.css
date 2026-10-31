@@ -210,7 +210,8 @@ pre.tpl { margin: 6px 0 0; padding: 8px 10px; background: var(--code); border-ra
 .info { position: relative; display: inline-flex; }
 .info-btn { border: 0; background: none; color: var(--muted); cursor: pointer; padding: 2px; border-radius: 50%; display: grid; place-items: center; opacity: 0.75; }
 .info-btn:hover, .info-btn.on { color: var(--accent); opacity: 1; }
-.pop { position: absolute; top: calc(100% + 6px); left: -8px; width: 300px; max-width: min(300px, 80vw); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow-lg); padding: 10px 12px; z-index: 40; font-size: 12.5px; font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--fg); line-height: 1.5; }
+.pop { position: absolute; top: calc(100% + 6px); left: -8px; width: 300px; max-width: min(300px, 80vw); background: var(--panel); border: 1px solid var(--line-strong); border-radius: 10px; box-shadow: var(--shadow-lg); padding: 10px 12px; z-index: 40; font-size: 12.5px; font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--fg); line-height: 1.5; }
+.pop.fixed-pop { position: fixed; top: auto; left: auto; max-width: none; z-index: 300; }
 .pop.right { left: auto; right: -8px; }
 .pop p { margin: 0 0 6px; overflow-wrap: anywhere; }
 .pop p:last-child { margin-bottom: 0; }
@@ -251,7 +252,9 @@ pre.tpl { margin: 6px 0 0; padding: 8px 10px; background: var(--code); border-ra
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0;
   padding: 0;
-  overflow: hidden;
+  overflow: visible;
+  position: relative;
+  z-index: 5;
 }
 .status-cell {
   display: flex;
@@ -282,8 +285,14 @@ pre.tpl { margin: 6px 0 0; padding: 8px 10px; background: var(--code); border-ra
 .status-icon.ok { background: var(--ok-soft); color: var(--ok); }
 .status-icon.bad { background: var(--bad-soft); color: var(--bad); }
 .status-icon.idle { background: var(--warn-soft); color: var(--warn); }
-.status-state {
+.status-controls {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+.status-state {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.01em;
@@ -304,6 +313,8 @@ pre.tpl { margin: 6px 0 0; padding: 8px 10px; background: var(--code); border-ra
   text-overflow: ellipsis;
 }
 .status-cell-action { margin-top: 2px; }
+.status-cell .toggle.small { gap: 5px; }
+.status-cell .toggle-label { font-size: 11px; font-weight: 700; }
 .agents { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
 .agent { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; display: flex; flex-direction: column; gap: 12px; box-shadow: var(--shadow); min-width: 0; }
 .agent-top { display: flex; align-items: center; gap: 10px; }
@@ -572,15 +583,27 @@ pre.tpl { margin: 6px 0 0; padding: 8px 10px; background: var(--code); border-ra
   margin-bottom: 0;
   display: flex;
   flex-direction: column;
-  min-height: 220px;
-  max-height: 280px;
+  min-height: 320px;
+  max-height: 420px;
 }
 .runs-pane { padding: 0; overflow: hidden; }
 .runs-pane .runs-panel { display: flex; flex-direction: column; height: 100%; padding: 10px 12px; min-height: 0; }
 .runs-scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.sheet-head-actions { display: inline-flex; align-items: center; gap: 8px; }
+.agents-fill {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 2px;
+}
+.agents-note { margin-top: auto; padding-top: 8px; }
+.agent-row.dim { opacity: 0.55; }
 .agent-rows.compact .agent-row {
-  min-height: 30px;
-  padding: 3px 2px;
+  min-height: 36px;
+  padding: 6px 2px;
   gap: 6px;
   grid-template-columns: 22px minmax(0, 1fr) 18px 56px 72px;
 }
@@ -652,7 +675,7 @@ pre.tpl { margin: 6px 0 0; padding: 8px 10px; background: var(--code); border-ra
 }
 @media (max-width: 860px) {
   .home-split { grid-template-columns: 1fr; }
-  .agents-pane, .runs-pane { max-height: 240px; }
+  .agents-pane, .runs-pane { min-height: 260px; max-height: 360px; }
 }
 @media (max-width: 1000px) {
   .repo-head, .repo-row, .repo-open { grid-template-columns: 26px minmax(0, 1fr) 80px 72px 88px; }

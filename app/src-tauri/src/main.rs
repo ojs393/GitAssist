@@ -92,6 +92,7 @@ fn main() {
             commands::health,
             commands::install_step,
             commands::disable_autostart,
+            commands::uninstall_step,
             commands::repair,
             commands::uninstall_all,
             commands::adapter_plan,

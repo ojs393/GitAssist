@@ -220,6 +220,16 @@ pub async fn disable_autostart() -> CmdResult<()> {
 }
 
 #[tauri::command]
+pub async fn uninstall_step(step: String) -> CmdResult<()> {
+    blocking(move || {
+        let (paths, env) = ctx()?;
+        let step = Step::parse(&step).ok_or("unknown step")?;
+        ops::uninstall_step(step, &paths, &env).map_err(err)
+    })
+    .await
+}
+
+#[tauri::command]
 pub async fn repair() -> CmdResult<Vec<String>> {
     blocking(|| {
         let (paths, env) = ctx()?;

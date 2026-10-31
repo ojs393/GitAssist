@@ -363,6 +363,28 @@ pub fn heal(paths: &Paths, env: &Env, cli: &Path, app: Option<&Path>) -> Vec<Str
     }
 }
 
+/// Turn off one install step without a full uninstall.
+pub fn uninstall_step(step: Step, paths: &Paths, env: &Env) -> Result<()> {
+    match step {
+        Step::Hooks => hooks_install::uninstall_hooks(paths)?,
+        Step::Shim => shim_install::uninstall_shim(paths)?,
+        Step::Autostart => {
+            autostart::disable(env)?;
+            let mut s = State::load(&paths.state_file);
+            s.autostart = false;
+            s.save(&paths.state_file)?;
+        }
+        Step::Agents => {
+            let cfg = Config::load(&paths.config_file).unwrap_or_default();
+            for a in adapters::all(env, &cfg) {
+                adapters::remove(&a, paths)?;
+            }
+        }
+    }
+    log_setup(paths, "off", &format!("{} turned off.", step.label()));
+    Ok(())
+}
+
 pub fn uninstall_all(paths: &Paths, env: &Env) -> Result<()> {
     let cfg = Config::load(&paths.config_file).unwrap_or_default();
     for a in adapters::all(env, &cfg) {
