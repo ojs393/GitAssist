@@ -25,9 +25,13 @@
 
   onMount(() => {
     load();
+    // Poll fast only while a job runs; otherwise every 8s when the tab is visible.
+    let n = 0;
     const t = setInterval(() => {
-      if (running || document.visibilityState === 'visible') load();
-    }, 1500);
+      if (document.visibilityState !== 'visible') return;
+      n += 1;
+      if (running || n % 5 === 0) load();
+    }, 1600);
     return () => clearInterval(t);
   });
 

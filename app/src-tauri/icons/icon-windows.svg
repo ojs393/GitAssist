@@ -1,18 +1,27 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-  <!-- Windows: full-bleed tile with a thicker mark so 16-32px .ico sizes stay legible. -->
+  <!-- Windows full-bleed teal tile; thicker strokes for small .ico sizes. -->
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="0.9" y2="1">
-      <stop offset="0" stop-color="#4a86ff"/>
-      <stop offset="1" stop-color="#1b48b8"/>
+    <linearGradient id="g" x1="0" y1="0" x2="0.85" y2="1">
+      <stop offset="0" stop-color="#14b8a6"/>
+      <stop offset="0.45" stop-color="#0d9488"/>
+      <stop offset="1" stop-color="#0f766e"/>
     </linearGradient>
   </defs>
   <rect x="0" y="0" width="1024" height="1024" rx="160" fill="url(#g)"/>
-  <g fill="none" stroke="#ffffff" stroke-width="70" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M512 150 L790 254 V496 C790 676 668 810 512 874 C356 810 234 676 234 496 V254 Z"/>
-    <circle cx="420" cy="410" r="54" fill="#ffffff" stroke="none"/>
-    <circle cx="420" cy="670" r="54" fill="#ffffff" stroke="none"/>
-    <circle cx="620" cy="500" r="54" fill="#ffffff" stroke="none"/>
-    <path d="M420 464 V616"/>
-    <path d="M620 554 C620 620 530 630 474 650"/>
+  <g fill="none" stroke="#ffffff" stroke-width="64" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M512 120 L860 250 V510 C860 730 710 880 512 950 C314 880 164 730 164 510 V250 Z"/>
+  </g>
+  <g fill="none" stroke="#ffffff" stroke-width="50" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M310 460
+             L255 270 L380 345
+             L512 290
+             L644 345 L769 270
+             L714 460
+             Q714 655 512 760
+             Q310 655 310 460 Z"/>
+    <circle cx="420" cy="505" r="24" fill="#ffffff" stroke="none"/>
+    <circle cx="604" cy="505" r="24" fill="#ffffff" stroke="none"/>
+    <path d="M455 580 Q512 640 569 580"/>
+    <circle cx="512" cy="555" r="18" fill="#ffffff" stroke="none"/>
   </g>
 </svg>
