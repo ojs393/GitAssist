@@ -148,7 +148,7 @@
         </div>
       {/if}
       {#if route.kind === 'local'}
-        <LocalDetail bind:config />
+        <LocalDetail bind:config {tabs} onnavigate={go} onback={() => go('overview')} />
       {:else if route.kind === 'destination'}
         <DestinationDetail repoKey={route.repoKey} targetId={route.targetId} onback={() => go('overview')} />
       {:else if section === 'overview'}

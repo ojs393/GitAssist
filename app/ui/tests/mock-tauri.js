@@ -97,6 +97,14 @@ const handlers = {
   activity: () => structuredClone(log),
   clear_activity: () => { log.length = 0; },
   repos_list: () => REPOS,
+  repos_work_summaries: ({ pathsIn }) =>
+    (pathsIn ?? []).map((path) => {
+      const repo = REPOS.find((r) => r.path === path);
+      const base = { ahead: 0, behind: 0, dirty: 0, staged: 0, additions: 0, deletions: 0, branch: repo?.branch || '', upstream: null, files: [] };
+      if (path.endsWith('/app')) return [path, { ...base, ahead: 2, dirty: 1, additions: 12, deletions: 3, upstream: 'origin/feat/retries' }];
+      if (path.endsWith('/notes')) return [path, { ...base, behind: 1, upstream: 'origin/main' }];
+      return [path, base];
+    }),
   repos_discover: async () => { await sleep(400); return REPOS; },
   storage: () => ({ logs: 48213, backups: 1203400, backup_sets: 7, cache: 812 }),
   clear_storage: ({ what }) => ({ logs: what === 'logs' || what === 'all' ? 0 : 48213, backups: what === 'backups' || what === 'all' ? 0 : 1203400, backup_sets: what === 'backups' || what === 'all' ? 0 : 7, cache: 0 }),
