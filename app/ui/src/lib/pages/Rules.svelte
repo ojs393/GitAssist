@@ -12,7 +12,6 @@
   import ChipList from '../ui/ChipList.svelte';
   import StyleFields from '../ui/StyleFields.svelte';
   import Tabs from '../ui/Tabs.svelte';
-  import Choice from '../ui/Choice.svelte';
 
   let { config = $bindable(), tab, siblings = [], tabs = [], onselect } = $props();
 
@@ -120,29 +119,37 @@
 </PageHead>
 
 {#if siblings.length > 1}
-  <div class="subtabs">
-    {#each siblings as id}
-      {@const t = tabs.find((x) => x.id === id)}
-      <button class:active={id === tab.id} onclick={() => onselect(id)}><Icon name={TAB_ICONS[id]} size={15} /> {t?.label}</button>
-    {/each}
+  <div class="tab-bar">
+    <div class="subtabs">
+      {#each siblings as id}
+        {@const t = tabs.find((x) => x.id === id)}
+        <button class:active={id === tab.id} onclick={() => onselect(id)}><Icon name={TAB_ICONS[id]} size={13} /> {t?.label}</button>
+      {/each}
+    </div>
   </div>
 {/if}
 
-<Tabs options={SECTIONS} value={section} onchange={(v) => (section = v)} />
+<div class="tab-bar">
+  <Tabs options={SECTIONS} value={section} onchange={(v) => (section = v)} />
+</div>
 
 <div class="split {previewSize}" class:dim={!enabled}>
   <div class="col">
     {#if section === 'quick'}
-    <Card title="Quick setup" icon="sparkle" info="One click sets the length rules for this tab. Fine-tune them in Length." emphasis>
-      <div class="choices">
-        {#each presetsLen as p}<Choice icon={p.icon} title={p.label} note={p.note} selected={activePreset === p.id} onclick={() => applyPreset(p)} />{/each}
+    <Card title="Quick setup" icon="sparkle" info="Length presets. Fine-tune in Length.">
+      <div class="preset-row">
+        {#each presetsLen as p}
+          <button type="button" class="preset-chip" class:on={activePreset === p.id} onclick={() => applyPreset(p)}>
+            {p.label}<span class="note">{p.note}</span>
+          </button>
+        {/each}
       </div>
       <Field label="Remove agent co-author lines"><Toggle checked={tc.strip_trailers ?? true} onchange={(v) => (config.tabs[tab.id].strip_trailers = v)} /></Field>
       {#if hasConventional}
-        <Field label="Require a prefix like feat: or fix:"><Toggle checked={conventional.value === 'required'} onchange={(v) => (config.tabs[tab.id].conventional = { value: v ? 'required' : 'off', mode: 'block' })} /></Field>
+        <Field label="Require feat: / fix: prefix"><Toggle checked={conventional.value === 'required'} onchange={(v) => (config.tabs[tab.id].conventional = { value: v ? 'required' : 'off', mode: 'block' })} /></Field>
       {/if}
-      {#if isPr}<Field label="Auto-updating change table"><Toggle checked={tc.managed_table ?? false} onchange={(v) => (config.tabs[tab.id].managed_table = v)} /></Field>{/if}
-      <div class="row-end"><button class="btn ghost sm" onclick={resetTab}><Icon name="refresh" size={14} /> Reset this tab to defaults</button></div>
+      {#if isPr}<Field label="Auto change table"><Toggle checked={tc.managed_table ?? false} onchange={(v) => (config.tabs[tab.id].managed_table = v)} /></Field>{/if}
+      <div class="row-end"><button class="btn ghost sm" onclick={resetTab}><Icon name="refresh" size={12} /> Reset defaults</button></div>
     </Card>
     {/if}
     {#if section === 'length'}

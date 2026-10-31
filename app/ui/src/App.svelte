@@ -77,7 +77,7 @@
 
 <div class="app">
   <header class="topbar">
-    <div class="brand"><img src={logo} alt="" width="28" height="28" /><span>GitAssist</span></div>
+    <div class="brand"><img src={logo} alt="" width="22" height="22" /><span>GitAssist</span></div>
     <nav class="nav">
       {#each NAV as item}
         <div class="nav-item">
