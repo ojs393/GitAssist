@@ -72,7 +72,7 @@
   {:else}
     <div class="import-list" role="group" aria-label="Remotes to import">
       {#each candidates as r (r.name)}
-        {@const role = roleForRemote(r, repo)}
+        {@const role = roleForRemote(r)}
         <button
           type="button"
           class="import-row"

@@ -36,6 +36,7 @@
 
   async function load(path) {
     loading = true;
+    addOpen = false;
     error = '';
     try {
       const [t, w, ov] = await Promise.all([
@@ -100,10 +101,19 @@
     pushMsg = notes?.length ? notes.join('; ') : 'Saved.';
   }
 
+  function openImport() {
+    if (loading) return;
+    addOpen = true;
+  }
+
   async function importDestinations(created) {
-    const next = structuredClone($state.snapshot(targets));
-    next.repo_path = repo.path;
-    next.targets = [...(next.targets ?? []), ...created];
+    const fresh = await api.targetsGet(repo.path);
+    const next = {
+      ...(fresh ?? {}),
+      repo_path: repo.path,
+      default_target: fresh?.default_target ?? null,
+      targets: [...(fresh?.targets ?? []), ...created],
+    };
     await save(next);
   }
 
@@ -138,7 +148,7 @@
   </div>
   <div class="page-actions">
     {#if saveNote}<span class="save-pill ok"><Icon name="check" size={13} />{saveNote}</span>{/if}
-    <ActionButton run={async () => (addOpen = true)} label="Import" icon="link" size="sm" />
+    <ActionButton run={openImport} label="Import" icon="link" size="sm" disabled={loading} />
     <ActionButton run={async () => (modal = true)} label="Configure" icon="sliders" size="sm" go={true} />
   </div>
 </header>
@@ -223,7 +233,7 @@
   <Card title="Publish targets" icon="upload" info="Each target can have its own filter, rules, and pre-push checks." raised>
     {#if !targets.targets.length}
       <div class="empty"><Icon name="upload" size={24} /><p>No targets yet. Configure to add remotes.</p>
-        <ActionButton run={async () => (addOpen = true)} label="Import" icon="link" size="sm" />
+        <ActionButton run={openImport} label="Import" icon="link" size="sm" disabled={loading} />
         <ActionButton run={async () => (modal = true)} label="Configure" icon="sliders" size="sm" go={true} />
       </div>
     {:else}
@@ -248,7 +258,7 @@
       </ul>
       <div class="row" style="margin-top:12px">
         <ActionButton run={() => push('--all')} label="Push all" kind="primary" size="sm" icon="upload" doneLabel="Done" go={true} />
-        <ActionButton run={async () => (addOpen = true)} label="Import" icon="link" kind="ghost" size="sm" />
+        <ActionButton run={openImport} label="Import" icon="link" kind="ghost" size="sm" disabled={loading} />
       </div>
     {/if}
   </Card>

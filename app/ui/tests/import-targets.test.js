@@ -45,7 +45,7 @@ test('confirm builds one target per selected remote and does not touch the old l
   assert.equal(existing.length, 1);
   assert.equal(made.length, 2);
   assert.equal(made[0].label, 'app-2');
-  assert.equal(made[0].role, 'public');
+  assert.equal(made[0].role, 'custom');
   assert.equal(made[0].remote_name, 'origin');
   assert.equal(made[0].url, 'git@github.com:octo/app.git');
   assert.equal(made[0].enabled, true);
@@ -62,4 +62,18 @@ test('unknown visibility stays custom', () => {
   const made = buildImportedTargets(local, [], local.remotes, 5);
   assert.equal(made[0].label, 'origin');
   assert.equal(made[0].role, 'custom');
+});
+
+test('repo visibility does not apply to a remote with none', () => {
+  const mixed = {
+    visibility: 'public',
+    slug: 'octo/app',
+    remotes: [
+      { name: 'origin', url: 'git@github.com:octo/app.git', visibility: 'public' },
+      { name: 'backup', url: 'git@github.com:octo/app-backup.git' },
+    ],
+  };
+  const made = buildImportedTargets(mixed, [], mixed.remotes, 9);
+  assert.equal(made[0].role, 'public');
+  assert.equal(made[1].role, 'custom');
 });

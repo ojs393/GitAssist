@@ -52,9 +52,9 @@ export function labelForRemote(remote, repo) {
   return clampLabel(name || 'remote');
 }
 
-/** public → public, private → personal. Unknown visibility stays custom. */
-export function roleForRemote(remote, repo) {
-  const vis = remote?.visibility || repo?.visibility;
+/** public → public, private → personal. Only this remote's visibility counts. */
+export function roleForRemote(remote) {
+  const vis = remote?.visibility;
   if (vis === 'public') return 'public';
   if (vis === 'private') return 'personal';
   return 'custom';
@@ -86,7 +86,7 @@ export function planImports(repo, existingTargets, remotes) {
     remote_name: remote.name,
     url: remote.url || '',
     label: uniqueLabel(labelForRemote(remote, repo), taken),
-    role: roleForRemote(remote, repo),
+    role: roleForRemote(remote),
   }));
 }
 
