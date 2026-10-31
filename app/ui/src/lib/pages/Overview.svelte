@@ -10,7 +10,7 @@
   import RunsPanel from '../ui/RunsPanel.svelte';
   import Setup from './Setup.svelte';
 
-  let { config = $bindable(), onnavigate } = $props();
+  let { config = $bindable(), onnavigate, onopenrepo } = $props();
   let report = $state(null);
   let repoList = $state([]);
   let error = $state('');
@@ -239,7 +239,7 @@
     {:else}
       <div class="repo-grid">
         {#each shownRepos as r}
-          <button type="button" class="repo-card" onclick={() => onnavigate?.('repos')}>
+          <button type="button" class="repo-card" onclick={() => (onopenrepo ? onopenrepo(r.path, 'work') : onnavigate?.('repos', { repo: r.path, tab: 'work' }))}>
             <RepoAvatar login={r.avatar_login || ''} owner={r.owner || 'unknown'} size={32} />
             <span class="repo-card-body">
               <strong>{r.name || name(r.path)}</strong>

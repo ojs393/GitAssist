@@ -18,6 +18,9 @@
   let saveState = $state('');
   let lastSaved = '';
   let timer;
+  let repoList = $state([]);
+  let focusPath = $state(null);
+  let focusTab = $state('work');
 
   // A section is a top-level page or one rules tab (`gitassist-app --section commit`).
   let section = $state(window.__GITASSIST_SECTION__ || location.hash.slice(1) || 'overview');
@@ -36,6 +39,7 @@
       config = s.config;
       tabs = s.tabs;
       lastSaved = JSON.stringify(s.config);
+      repoList = await api.repos().catch(() => []);
     } catch (e) {
       loadError = String(e);
     }
@@ -63,16 +67,25 @@
   const tabById = (id) => tabs.find((t) => t.id === id);
   const activeGroup = $derived(NAV.find((n) => n.id === section || n.children?.includes(section))?.id);
   const activeNav = $derived(NAV.find((n) => n.id === activeGroup));
-  // Repo group uses the shared page-tab strip; rules tabs render their own siblings strip.
   const repoSiblings = $derived(activeGroup === 'repogroup' ? activeNav?.children ?? [] : []);
 
-  function go(id) {
+  function go(id, opts = {}) {
+    if (opts.repo) {
+      focusPath = opts.repo;
+      focusTab = opts.tab || 'work';
+    } else if (id !== 'repos') {
+      focusPath = null;
+    }
     section = id;
   }
 
   function goNav(item) {
-    if (item.children?.includes(section)) return; // already in this group — keep sub-page
+    if (item.children?.includes(section)) return;
     go(item.target ?? item.id);
+  }
+
+  function openRepo(path, tab = 'work') {
+    go('repos', { repo: path, tab });
   }
 </script>
 
@@ -123,7 +136,7 @@
         </div>
       {/if}
       {#if section === 'overview'}
-        <Overview bind:config onnavigate={go} />
+        <Overview bind:config onnavigate={go} onopenrepo={openRepo} />
       {:else if section === 'ignore'}
         <Ignore bind:config />
       {:else if section === 'settings' || section === 'defaults'}
@@ -131,15 +144,38 @@
       {:else if section === 'branches'}
         <Branches bind:config />
       {:else if section === 'repos'}
-        <Repos />
+        <Repos
+          {focusPath}
+          {focusTab}
+          bind:globalConfig={config}
+          {tabs}
+          onclearFocus={() => (focusPath = null)}
+        />
       {:else if section === 'activity'}
         <Activity {tabs} />
       {:else if tabById(section)}
         {#key section}
-          <Rules bind:config tab={tabById(section)} siblings={NAV.find((n) => n.children?.includes(section))?.children ?? []} {tabs} onselect={go} />
+          <Rules
+            bind:config
+            tab={tabById(section)}
+            siblings={NAV.find((n) => n.children?.includes(section))?.children ?? []}
+            {tabs}
+            onselect={go}
+            repoOptions={repoList}
+            appliesPath=""
+            onapplies={(path) => {
+              if (!path) return;
+              const tab = NAV.find((n) => n.id === 'commits')?.children?.includes(section)
+                ? 'commit'
+                : NAV.find((n) => n.id === 'prs')?.children?.includes(section)
+                  ? 'pr_create'
+                  : 'work';
+              openRepo(path, section && (section.startsWith('pr') || section === 'review' || section === 'issue') ? (section === 'pr_update' || section === 'pr_comment' || section === 'review' || section === 'issue' ? section : 'pr_create') : (['commit', 'docs_commit', 'merge'].includes(section) ? section : tab));
+            }}
+          />
         {/key}
       {:else}
-        <Overview bind:config />
+        <Overview bind:config onnavigate={go} onopenrepo={openRepo} />
       {/if}
     {/if}
   </main>

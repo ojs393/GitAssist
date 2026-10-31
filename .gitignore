@@ -93,5 +93,24 @@ credentials.json
 secrets.*
 .gitassist.local.toml
 
+# Local GitAssist runtime (never ship user machine data)
+**/Application Support/GitAssist/
+.gitassist/
+jobs.json
+repos-index.json
+repos.json
+activity.log
+**/targets/*.toml
+**/overrides/*.toml
+**/backups/
+**/hooks/
+app/src-tauri/binaries/*
+!app/src-tauri/binaries/.gitkeep
+
 # Internal planning notes (README is the public docs)
 /docs/
+
+# Agent / session scratch that may contain personal paths
+agent-transcripts/
+*.session.md
+/tmp/

@@ -523,6 +523,60 @@ pub async fn targets_push(path: String, which: String) -> CmdResult<PublishRepor
 }
 
 #[tauri::command]
+pub async fn repo_work(path: String) -> CmdResult<gitassist_gateway::work::WorkStatus> {
+    blocking(move || {
+        let repo = expand(&path);
+        gitassist_gateway::work::status(&repo).map_err(err)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn repos_work_summaries(paths_in: Vec<String>) -> CmdResult<Vec<(String, gitassist_gateway::work::WorkStatus)>> {
+    blocking(move || {
+        let mut out = Vec::with_capacity(paths_in.len());
+        for p in paths_in {
+            let repo = expand(&p);
+            let mut w = gitassist_gateway::work::summary(&repo);
+            w.files.clear();
+            out.push((p, w));
+        }
+        Ok(out)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn overrides_get(path: String) -> CmdResult<gitassist_gateway::overrides::RepoOverrides> {
+    blocking(move || {
+        let (paths, _) = ctx()?;
+        Ok(gitassist_gateway::overrides::load(&paths, &expand(&path)))
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn overrides_save(
+    path: String,
+    data: gitassist_gateway::overrides::RepoOverrides,
+) -> CmdResult<()> {
+    blocking(move || {
+        let (paths, _) = ctx()?;
+        gitassist_gateway::overrides::save(&paths, &expand(&path), &data).map_err(err)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn overrides_clear_tab(path: String, tab: String) -> CmdResult<()> {
+    blocking(move || {
+        let (paths, _) = ctx()?;
+        gitassist_gateway::overrides::clear_tab(&paths, &expand(&path), &tab).map_err(err)
+    })
+    .await
+}
+
+#[tauri::command]
 pub async fn jobs_list() -> CmdResult<Vec<gitassist_gateway::jobs::Job>> {
     blocking(|| {
         let (paths, _) = ctx()?;

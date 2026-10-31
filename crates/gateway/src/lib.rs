@@ -5,6 +5,7 @@ pub mod git;
 pub mod hooks;
 pub mod jobs;
 pub mod log;
+pub mod overrides;
 pub mod paths;
 pub mod publish;
 pub mod refname;
@@ -13,6 +14,7 @@ pub mod repo;
 pub mod secure;
 pub mod state;
 pub mod targets;
+pub mod work;
 
 pub use paths::Paths;
 

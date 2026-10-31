@@ -670,8 +670,31 @@ pre.tpl { margin: 6px 0 0; padding: 8px 10px; background: var(--code); border-ra
 .repo-card-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
 .repo-card-body strong { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .repo-card-actions {
-  position: absolute; top: 6px; right: 28px;
-  display: flex; align-items: center; gap: 4px; z-index: 1;
+  position: absolute; top: 6px; right: 8px;
+  display: flex; align-items: center; gap: 4px; z-index: 2;
+}
+.repo-card .go { margin-right: 22px; }
+.repo-vis {
+  width: fit-content;
+  margin-top: 4px;
+  height: 18px;
+  padding: 0 7px;
+  font-size: 10.5px;
+}
+.applies { padding: 8px 12px; margin-bottom: 8px; }
+.applies-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.applies-select {
+  flex: 1;
+  min-width: 180px;
+  max-width: 420px;
+  height: var(--ctrl-h);
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--fg);
+  padding: 0 10px;
+  font: inherit;
+  font-size: 12.5px;
 }
 @media (max-width: 860px) {
   .home-split { grid-template-columns: 1fr; }
