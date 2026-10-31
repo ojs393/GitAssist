@@ -5,10 +5,12 @@ pub mod git;
 pub mod hooks;
 pub mod log;
 pub mod paths;
+pub mod publish;
 pub mod registry;
 pub mod repo;
 pub mod secure;
 pub mod state;
+pub mod targets;
 
 pub use paths::Paths;
 

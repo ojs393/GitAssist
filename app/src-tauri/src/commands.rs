@@ -10,6 +10,8 @@ use gitassist_core::scope::{
 use gitassist_core::{effective, process, Config, Input, Outcome, Tab, TabConfig};
 use gitassist_gateway::log::{self, Entry};
 use gitassist_gateway::paths::exe_name;
+use gitassist_gateway::publish::{self, PublishReport, Selection};
+use gitassist_gateway::targets::{self, RepoTargets};
 use gitassist_gateway::Paths;
 use gitassist_setup::adapters::{self, Adapter};
 use gitassist_setup::health::{self, Report};
@@ -446,6 +448,56 @@ pub async fn repos_discover(root: Option<String>) -> CmdResult<Vec<RepoView>> {
         };
         repos::discover(&paths, &roots, 4);
         Ok(repo_views(&paths, &env))
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn targets_get(path: String) -> CmdResult<RepoTargets> {
+    blocking(move || {
+        let (paths, _) = ctx()?;
+        let repo = expand(&path);
+        Ok(targets::load(&paths, &repo))
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn targets_save(path: String, data: RepoTargets) -> CmdResult<Vec<String>> {
+    blocking(move || {
+        let (paths, _) = ctx()?;
+        let repo = expand(&path);
+        targets::save(&paths, &repo, &data).map_err(err)?;
+        let notes = targets::ensure_remotes(&repo, &data).map_err(err)?;
+        // Refresh Cursor/repo rule so agents see the new targets.
+        if let Ok(cfg) = Config::load(&paths.config_file) {
+            let extra = targets::render_targets_section(&data);
+            let file = repo.join(gitassist_core::instructions::REPO_RULE_PATH);
+            if cfg.repo_rule_files {
+                let body = gitassist_core::instructions::render_repo_rule_with_extra(&cfg, &extra);
+                if let Some(d) = file.parent() {
+                    let _ = std::fs::create_dir_all(d);
+                }
+                let _ = std::fs::write(&file, body);
+            }
+        }
+        Ok(notes)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn targets_push(path: String, which: String) -> CmdResult<PublishReport> {
+    blocking(move || {
+        let (paths, _) = ctx()?;
+        let repo = expand(&path);
+        let cfg = Config::load(&paths.config_file).map_err(err)?;
+        let report = if which.trim() == "--all" || which.trim() == "all" {
+            publish::publish(&paths, &repo, &cfg, Selection::All).map_err(err)?
+        } else {
+            publish::publish(&paths, &repo, &cfg, Selection::Label(which.trim())).map_err(err)?
+        };
+        Ok(report)
     })
     .await
 }

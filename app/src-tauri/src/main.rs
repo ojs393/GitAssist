@@ -101,6 +101,9 @@ fn main() {
             commands::scan_repos,
             commands::connect_repo,
             commands::disconnect_repo,
+            commands::targets_get,
+            commands::targets_save,
+            commands::targets_push,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();

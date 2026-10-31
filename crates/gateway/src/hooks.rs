@@ -5,7 +5,7 @@ use std::process::{Command, Stdio};
 
 use anyhow::{Context, Result};
 use gitassist_core::config::{Config, TabConfig, Tabs};
-use gitassist_core::instructions::{is_repo_rule, render_repo_rule, REPO_RULE_PATH};
+use gitassist_core::instructions::{is_repo_rule, render_repo_rule_with_extra, REPO_RULE_PATH};
 use gitassist_core::message::{join_git_comments, split_git_comments, subject_and_body};
 use gitassist_core::scope::{patterns_for, scope_label, Matcher};
 use gitassist_core::tab::{classify_commit, Tab};
@@ -205,6 +205,8 @@ fn commit_msg(args: &[String], cfg: &Config, paths: &Paths) -> Result<i32> {
 
 fn post_commit(cfg: &Config, paths: &Paths) -> Result<i32> {
     crate::registry::touch(paths, |r| r.last_commit = Some(crate::registry::now()));
+    // Best-effort auto-publish; never fails the commit.
+    crate::publish::after_commit_publish(paths, cfg);
     let id = &cfg.global.identity;
     if !id.enforce_author || !id.is_set() || git::in_progress_op().is_some() {
         return Ok(0);
@@ -321,6 +323,23 @@ fn pre_push(args: &[String], stdin: &[u8], cfg: &Config, paths: &Paths) -> Resul
         r.last_push = Some(crate::registry::now());
         r.last_push_remote = Some(pushing_to);
     });
+    // Per-target overlays + checks when this remote is a configured publish target.
+    let repo_path = git::toplevel().unwrap_or_default();
+    let targets = crate::targets::load(paths, Path::new(&repo_path));
+    let target = crate::targets::find_by_remote(&targets, remote);
+    let eff_cfg = target
+        .map(|t| crate::targets::effective_config(cfg, t))
+        .unwrap_or_else(|| cfg.clone());
+    if let Some(t) = target {
+        if let Err(e) = crate::publish::preflight_target_checks(Path::new(&repo_path), t) {
+            eprintln!("GitAssist: push to `{}` blocked: {e:#}", t.label);
+            let mut e_log = Entry::new("hook:pre-push", "blocked");
+            e_log.repo = repo_path.clone();
+            e_log.messages = vec![format!("{e:#}")];
+            log::append(&paths.log_file, &e_log);
+            return Ok(1);
+        }
+    }
     let mut blocked: Vec<String> = Vec::new();
     let mut warned: Vec<String> = Vec::new();
     for line in input.lines() {
@@ -332,7 +351,7 @@ fn pre_push(args: &[String], stdin: &[u8], cfg: &Config, paths: &Paths) -> Resul
             continue;
         }
         let new_branch = remote_sha.chars().all(|c| c == '0');
-        for bf in gitassist_core::branch::check_push(&cfg.branches, remote_ref, new_branch) {
+        for bf in gitassist_core::branch::check_push(&eff_cfg.branches, remote_ref, new_branch) {
             if bf.mode == Mode::Block {
                 blocked.push(format!("  {remote_ref}\n    {}", bf.message));
             } else {
@@ -341,13 +360,13 @@ fn pre_push(args: &[String], stdin: &[u8], cfg: &Config, paths: &Paths) -> Resul
         }
         for c in commits_in_range(local_sha, remote_sha, remote)? {
             let source = c.merge.then_some("merge");
-            let tab = classify_commit(source, &c.files, &cfg.global.docs.patterns);
+            let tab = classify_commit(source, &c.files, &eff_cfg.global.docs.patterns);
             let outcome = process(
                 &Input {
                     body: Some(&c.message),
                     ..Default::default()
                 },
-                &rules_for(cfg, tab),
+                &effective(&eff_cfg, tab, project_tab(&eff_cfg, tab).as_ref()),
             );
             let short = &c.sha[..c.sha.len().min(10)];
             let subject = subject_and_body(&c.message).0;
@@ -454,7 +473,7 @@ fn sync_exclude(patterns: &[String], cfg: &Config) {
 
 /// Writes (or removes) the per-repo rule file so agents that only read
 /// project rules, like Cursor, see the same rules as everyone else.
-fn sync_repo_rule(cfg: &Config) {
+fn sync_repo_rule(cfg: &Config, paths: &Paths) {
     let Some(root) = git::toplevel() else { return };
     let file = Path::new(&root).join(REPO_RULE_PATH);
     let existing = fs::read_to_string(&file).ok();
@@ -467,7 +486,9 @@ fn sync_repo_rule(cfg: &Config) {
     if existing.as_deref().is_some_and(|t| !is_repo_rule(t)) {
         return;
     }
-    let want = render_repo_rule(cfg);
+    let targets = crate::targets::load(paths, Path::new(&root));
+    let extra = crate::targets::render_targets_section(&targets);
+    let want = render_repo_rule_with_extra(cfg, &extra);
     if existing.as_deref() != Some(want.as_str()) {
         if let Some(d) = file.parent() {
             let _ = fs::create_dir_all(d);
@@ -485,7 +506,7 @@ fn post_checkout(cfg: &Config, paths: &Paths) -> Result<i32> {
         Vec::new()
     };
     sync_exclude(&scope, cfg);
-    sync_repo_rule(cfg);
+    sync_repo_rule(cfg, paths);
     Ok(0)
 }
 
@@ -518,7 +539,7 @@ fn branch_guard(cfg: &Config, paths: &Paths) -> Result<Option<i32>> {
 }
 
 fn pre_commit(cfg: &Config, paths: &Paths) -> Result<i32> {
-    sync_repo_rule(cfg);
+    sync_repo_rule(cfg, paths);
     if let Some(code) = branch_guard(cfg, paths)? {
         return Ok(code);
     }

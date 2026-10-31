@@ -8,12 +8,15 @@
   import Segmented from '../ui/Segmented.svelte';
   import ActionButton from '../ui/ActionButton.svelte';
 
+  import RepoDetail from './RepoDetail.svelte';
+
   let repos = $state(null);
   let error = $state('');
   let query = $state('');
   let filter = $state('all');
   let folder = $state('');
   let scanned = $state(false);
+  let selected = $state(null);
 
   async function load() {
     try {
@@ -43,6 +46,10 @@
   );
   const pushed = $derived((repos ?? []).map((r) => r.last_push ?? 0).reduce((a, b) => Math.max(a, b), 0));
 </script>
+
+{#if selected}
+  <RepoDetail repo={selected} onback={() => (selected = null)} />
+{:else}
 
 <header class="page-head">
   <div class="page-title">
@@ -79,7 +86,9 @@
         {#each shown as r (r.path)}
           {@const own = OWNER[r.owner] ?? OWNER.unknown}
           {@const vis = VIS[r.visibility] ?? VIS.unknown}
-          <li class="repo-row">
+          <li class="repo-row repo-row-click" role="button" tabindex="0"
+            onclick={() => (selected = r)}
+            onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && (selected = r)}>
             <span class="agent-glyph" title={own[1]}><Icon name={own[0]} size={16} /></span>
             <span class="repo-name">
               <strong>{r.name}</strong>
@@ -89,7 +98,7 @@
             <span class="mono small repo-branch" title={r.branch ?? ''}>{r.branch ?? '—'}</span>
             <span class="small muted">{r.last_commit ? relativeTime(r.last_commit) : '—'}</span>
             <span class="small muted" title={r.last_push_remote ? `to ${r.last_push_remote}` : r.last_sync ? 'last fetch or push' : ''}>{r.last_push ? relativeTime(r.last_push) : r.last_sync ? relativeTime(r.last_sync) : '—'}</span>
-            <span class="repo-end">
+            <span class="repo-end" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
               {#if r.local_hooks_path && !r.connected}
                 <ActionButton run={async () => { await api.connectRepo(r.path); repos = await api.repos(); }} label="Connect" size="sm" doneLabel="Connected" />
               {/if}
@@ -113,3 +122,9 @@
     </div>
   </Card>
 {/if}
+{/if}
+
+<style>
+  .repo-row-click { cursor: pointer; }
+  .repo-row-click:hover { background: color-mix(in srgb, var(--fg, #111) 4%, transparent); }
+</style>

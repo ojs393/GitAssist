@@ -30,6 +30,9 @@ export const api = {
   scanRepos: (root) => invoke('scan_repos', { root }),
   connectRepo: (path) => invoke('connect_repo', { path }),
   disconnectRepo: (path) => invoke('disconnect_repo', { path }),
+  targetsGet: (path) => invoke('targets_get', { path }),
+  targetsSave: (path, data) => invoke('targets_save', { path, data: plain(data) }),
+  targetsPush: (path, which) => invoke('targets_push', { path, which }),
 };
 
 export const MODES = [
