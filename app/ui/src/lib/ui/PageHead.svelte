@@ -7,7 +7,7 @@
 
 <header class="page-head">
   <div class="page-title">
-    <span class="page-icon"><Icon name={icon} size={18} /></span>
+    <span class="page-icon"><Icon name={icon} size={15} /></span>
     <h1>{title}</h1>
     {#if info}<Info><p>{info}</p></Info>{/if}
   </div>

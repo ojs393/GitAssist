@@ -2,7 +2,7 @@
   import Icon from './Icon.svelte';
 
   // Shows working / done / failed so every click visibly lands; the error stays until the next try.
-  let { run, label, icon = '', doneLabel = 'Done', kind = 'primary', size = '', onresult, disabled = false, go = false } = $props();
+  let { run, label, icon = '', doneLabel = 'Done', kind = 'primary', size = 'sm', onresult, disabled = false, go = false } = $props();
   let state = $state('idle');
   let error = $state('');
   let timer;

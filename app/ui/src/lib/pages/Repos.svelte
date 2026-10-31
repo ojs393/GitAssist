@@ -53,7 +53,7 @@
 
 <PageHead title="Repos" icon="layers" info="Local repos GitAssist has seen, remotes, and publish targets. Find adds ones you haven't touched yet.">
   {#snippet actions()}
-    <ActionButton run={() => find()} label="Find" icon="search" kind="ghost" size="sm" doneLabel="Updated" />
+    <ActionButton run={() => find()} label="Find" icon="search" kind="ghost" size="sm" doneLabel="Done" />
   {/snippet}
 </PageHead>
 

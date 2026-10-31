@@ -6,7 +6,6 @@
   import Toggle from '../ui/Toggle.svelte';
   import Segmented from '../ui/Segmented.svelte';
   import ChipList from '../ui/ChipList.svelte';
-  import Choice from '../ui/Choice.svelte';
 
   let { config = $bindable() } = $props();
   const b = $derived(config.branches);
@@ -25,9 +24,13 @@
 
 <div class="split even" class:dim={!b.enabled}>
   <div class="col">
-    <Card title="Quick setup" icon="sparkle" emphasis>
-      <div class="choices">
-        {#each BRANCH_PRESETS as p}<Choice icon={p.icon} title={p.label} note={p.note} selected={active === p.id} onclick={() => (config.branches = p.apply(config.branches))} />{/each}
+    <Card title="Quick setup" icon="sparkle">
+      <div class="preset-row">
+        {#each BRANCH_PRESETS as p}
+          <button type="button" class="preset-chip" class:on={active === p.id} onclick={() => (config.branches = p.apply(config.branches))}>
+            {p.label}<span class="note">{p.note}</span>
+          </button>
+        {/each}
       </div>
     </Card>
 
