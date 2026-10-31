@@ -16,7 +16,6 @@
   let tabs = $state([]);
   let loadError = $state('');
   let saveState = $state('');
-  let openMenu = $state('');
   let lastSaved = '';
   let timer;
 
@@ -63,48 +62,33 @@
 
   const tabById = (id) => tabs.find((t) => t.id === id);
   const activeGroup = $derived(NAV.find((n) => n.id === section || n.children?.includes(section))?.id);
+  const activeNav = $derived(NAV.find((n) => n.id === activeGroup));
+  // Repo group uses the shared page-tab strip; rules tabs render their own siblings strip.
+  const repoSiblings = $derived(activeGroup === 'repogroup' ? activeNav?.children ?? [] : []);
 
   function go(id) {
     section = id;
-    openMenu = '';
   }
-  function onWindowClick(e) {
-    if (!e.target.closest?.('.nav-item')) openMenu = '';
+
+  function goNav(item) {
+    if (item.children?.includes(section)) return; // already in this group — keep sub-page
+    go(item.target ?? item.id);
   }
 </script>
-
-<svelte:window onclick={onWindowClick} onkeydown={(e) => e.key === 'Escape' && (openMenu = '')} />
 
 <div class="app">
   <header class="topbar">
     <div class="brand"><img src={logo} alt="" width="22" height="22" /><span>GitAssist</span></div>
-    <nav class="nav">
+    <nav class="nav" aria-label="Main">
       {#each NAV as item}
-        <div class="nav-item">
-          {#if item.children}
-            <button class="nav-btn" class:active={activeGroup === item.id} aria-haspopup="menu" aria-expanded={openMenu === item.id}
-              onclick={() => (openMenu = openMenu === item.id ? '' : item.id)}>
-              <Icon name={item.icon} size={16} /> {item.label} <span class="caret"><Icon name="chevron" size={14} /></span>
-            </button>
-            {#if openMenu === item.id}
-              <div class="menu" role="menu">
-                {#each item.children as id}
-                  {@const t = tabById(id) ?? PAGES[id]}
-                  {#if t}
-                    <button role="menuitem" class:active={section === id} onclick={() => go(id)}>
-                      <Icon name={TAB_ICONS[id] ?? PAGES[id]?.icon} size={16} /> {t.label}
-                      <span class="go"><Icon name="chevron-right" size={14} /></span>
-                    </button>
-                  {/if}
-                {/each}
-              </div>
-            {/if}
-          {:else}
-            <button class="nav-btn" class:active={activeGroup === item.id} onclick={() => go(item.id)}>
-              <Icon name={item.icon} size={16} /> {item.label}
-            </button>
-          {/if}
-        </div>
+        <button
+          type="button"
+          class="nav-btn"
+          class:active={activeGroup === item.id}
+          onclick={() => goNav(item)}
+        >
+          <Icon name={item.icon} size={16} /> {item.label}
+        </button>
       {/each}
     </nav>
     <div class="top-right">
@@ -123,24 +107,40 @@
       <div class="card error-card"><Icon name="alert" /> Settings could not be loaded: {loadError}</div>
     {:else if !config}
       <div class="loading"><span class="spinner"></span></div>
-    {:else if section === 'overview'}
-      <Overview bind:config onnavigate={go} />
-    {:else if section === 'ignore'}
-      <Ignore bind:config />
-    {:else if section === 'settings' || section === 'defaults'}
-      <Settings bind:config />
-    {:else if section === 'branches'}
-      <Branches bind:config />
-    {:else if section === 'repos'}
-      <Repos />
-    {:else if section === 'activity'}
-      <Activity {tabs} />
-    {:else if tabById(section)}
-      {#key section}
-        <Rules bind:config tab={tabById(section)} siblings={NAV.find((n) => n.children?.includes(section))?.children ?? []} {tabs} onselect={go} />
-      {/key}
     {:else}
-      <Overview bind:config />
+      {#if repoSiblings.length > 1}
+        <div class="tab-bar">
+          <div class="subtabs">
+            {#each repoSiblings as id}
+              {@const t = PAGES[id]}
+              {#if t}
+                <button type="button" class:active={section === id} onclick={() => go(id)}>
+                  <Icon name={t.icon} size={13} /> {t.label}
+                </button>
+              {/if}
+            {/each}
+          </div>
+        </div>
+      {/if}
+      {#if section === 'overview'}
+        <Overview bind:config onnavigate={go} />
+      {:else if section === 'ignore'}
+        <Ignore bind:config />
+      {:else if section === 'settings' || section === 'defaults'}
+        <Settings bind:config />
+      {:else if section === 'branches'}
+        <Branches bind:config />
+      {:else if section === 'repos'}
+        <Repos />
+      {:else if section === 'activity'}
+        <Activity {tabs} />
+      {:else if tabById(section)}
+        {#key section}
+          <Rules bind:config tab={tabById(section)} siblings={NAV.find((n) => n.children?.includes(section))?.children ?? []} {tabs} onselect={go} />
+        {/key}
+      {:else}
+        <Overview bind:config />
+      {/if}
     {/if}
   </main>
 </div>

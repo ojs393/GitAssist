@@ -1,5 +1,5 @@
 <p align="center">
-  <img src=".github/assets/logo.png" width="112" alt="GitAssist logo">
+  <img src=".github/assets/gitassist-mark.png" width="112" alt="GitAssist logo">
 </p>
 
 <h1 align="center">GitAssist</h1>
