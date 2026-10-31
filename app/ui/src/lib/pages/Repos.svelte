@@ -11,6 +11,7 @@
   import RepoAvatar from '../ui/RepoAvatar.svelte';
   import RepoDetail from './RepoDetail.svelte';
 
+  let { focusPath = null, focusTab = 'work', onclearFocus, globalConfig = $bindable(), tabs = [] } = $props();
   let repos = $state(null);
   let error = $state('');
   let query = $state('');
@@ -18,11 +19,13 @@
   let folder = $state('');
   let scanned = $state(false);
   let selected = $state(null);
+  let detailTab = $state('work');
 
   async function load() {
     try {
       repos = await api.repos();
       if (!repos.length && !scanned) await find();
+      applyFocus();
     } catch (e) {
       error = String(e);
     }
@@ -30,7 +33,21 @@
   async function find(root) {
     scanned = true;
     repos = await api.discoverRepos(root);
+    applyFocus();
   }
+  function applyFocus() {
+    if (!focusPath || !repos) return;
+    const hit = repos.find((r) => r.path === focusPath);
+    if (hit) {
+      selected = hit;
+      detailTab = focusTab || 'work';
+    }
+  }
+  $effect(() => {
+    focusPath;
+    focusTab;
+    applyFocus();
+  });
   onMount(load);
 
   const OWNER = { personal: 'Personal', organization: 'Organization', unknown: 'Local' };
@@ -49,7 +66,16 @@
 </script>
 
 {#if selected}
-  <RepoDetail repo={selected} onback={() => (selected = null)} />
+  <RepoDetail
+    repo={selected}
+    initialTab={detailTab}
+    bind:globalConfig
+    {tabs}
+    onback={() => {
+      selected = null;
+      onclearFocus?.();
+    }}
+  />
 {:else}
 
 <PageHead title="Repos" icon="layers" info="Local repos GitAssist has seen, remotes, and publish targets. Find adds ones you haven't touched yet.">
@@ -89,10 +115,10 @@
               <strong>{r.name}</strong>
               <span class="muted-2 small">{r.slug ? `${r.host === 'github.com' ? '' : r.host + ' · '}${r.slug}` : 'No remote'} · {own}</span>
               <span class="muted small">{r.branch || '—'} · {r.last_push ? relativeTime(r.last_push) : r.last_commit ? relativeTime(r.last_commit) : '—'}</span>
+              {#if r.slug && vis[1]}
+                <span class="repo-vis pill {r.visibility === 'public' ? 'warn' : r.visibility === 'private' ? 'ok' : ''}"><Icon name={vis[0]} size={11} /> {vis[1]}</span>
+              {/if}
             </span>
-            {#if r.slug}
-              <span class="pill {r.visibility === 'public' ? 'warn' : r.visibility === 'private' ? 'ok' : ''}">{#if vis[1]}<Icon name={vis[0]} size={11} /> {vis[1]}{/if}</span>
-            {/if}
             <span class="go"><Icon name="chevron-right" size={14} /></span>
           </button>
           <div class="repo-card-actions">

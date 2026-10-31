@@ -13,7 +13,22 @@
   import StyleFields from '../ui/StyleFields.svelte';
   import Tabs from '../ui/Tabs.svelte';
 
-  let { config = $bindable(), tab, siblings = [], tabs = [], onselect } = $props();
+  let {
+    config = $bindable(),
+    tab,
+    siblings = [],
+    tabs = [],
+    onselect,
+    embedded = false,
+    repoOptions = [],
+    appliesPath = '',
+    onapplies,
+  } = $props();
+
+  // Ensure the tab slot exists so toggles can write.
+  $effect(() => {
+    if (config && tab?.id && config.tabs[tab.id] == null) config.tabs[tab.id] = {};
+  });
 
   const ABOUT = {
     commit: 'Every git commit on this machine, typed by you or run by any agent.',
@@ -112,20 +127,42 @@
   </Field>
 {/snippet}
 
-<PageHead title={tab.label} icon={TAB_ICONS[tab.id]} info={ABOUT[tab.id]}>
-  {#snippet actions()}
-    <Toggle checked={enabled} onchange={(v) => (config.tabs[tab.id].enabled = v)} label={enabled ? 'On' : 'Off'} />
-  {/snippet}
-</PageHead>
+{#if !embedded}
+  <PageHead title={tab.label} icon={TAB_ICONS[tab.id]} info={ABOUT[tab.id]}>
+    {#snippet actions()}
+      <Toggle checked={enabled} onchange={(v) => (config.tabs[tab.id].enabled = v)} label={enabled ? 'On' : 'Off'} />
+    {/snippet}
+  </PageHead>
+
+  <div class="applies sheet">
+    <div class="applies-row">
+      <span class="muted small">Applies to</span>
+      <select class="applies-select" value={appliesPath || ''} onchange={(e) => onapplies?.(e.currentTarget.value)}>
+        <option value="">All projects (defaults)</option>
+        {#each repoOptions as r}
+          <option value={r.path}>{r.name}{#if r.slug} · {r.slug}{/if}</option>
+        {/each}
+      </select>
+      <Info align="right">
+        <p>These settings are the default for every repo. Pick a project to open its detail page and customize only that one.</p>
+      </Info>
+    </div>
+  </div>
+{/if}
 
 {#if siblings.length > 1}
   <div class="tab-bar">
     <div class="subtabs">
       {#each siblings as id}
         {@const t = tabs.find((x) => x.id === id)}
-        <button class:active={id === tab.id} onclick={() => onselect(id)}><Icon name={TAB_ICONS[id]} size={13} /> {t?.label}</button>
+        <button type="button" class:active={id === tab.id} onclick={() => onselect(id)}><Icon name={TAB_ICONS[id]} size={13} /> {t?.label}</button>
       {/each}
     </div>
+  </div>
+{/if}
+{#if embedded}
+  <div class="row" style="margin-bottom:8px;justify-content:flex-end">
+    <Toggle checked={enabled} onchange={(v) => (config.tabs[tab.id].enabled = v)} label={enabled ? 'On' : 'Off'} />
   </div>
 {/if}
 
