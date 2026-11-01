@@ -1,22 +1,144 @@
 <script>
   import { onMount } from 'svelte';
   import { api } from '../api.js';
-  import { relativeTime } from '../diff.js';
   import Icon from '../ui/Icon.svelte';
   import Info from '../ui/Info.svelte';
   import Toggle from '../ui/Toggle.svelte';
   import ActionButton from '../ui/ActionButton.svelte';
-  import RepoAvatar from '../ui/RepoAvatar.svelte';
   import RunsPanel from '../ui/RunsPanel.svelte';
+  import Modal from '../ui/Modal.svelte';
   import Setup from './Setup.svelte';
+  import TopologyGraph from '../topology/TopologyGraph.svelte';
+  import AddDestination from '../topology/AddDestination.svelte';
+  import { encodeDestinationId } from '../topology/destinationId.js';
 
   let { config = $bindable(), onnavigate, onopenrepo } = $props();
   let report = $state(null);
   let repoList = $state([]);
+  let destNodes = $state([]);
   let error = $state('');
+  let topoError = $state('');
   let checkedAt = $state(null);
   let wizard = $state(false);
   let syncing = $state(false);
+  let picking = $state(false);
+  let addOpen = $state(false);
+  let addRepo = $state(null);
+  let addExisting = $state([]);
+
+  // Pause and import both write one targets file per repo. Queue them so two
+  // clicks cannot save a stale copy over each other.
+  const repoWrites = new Map();
+  const inflightPause = new Set();
+  let loadGen = 0;
+  // Bumped after a pause save so a targets list that started earlier cannot
+  // paint the pre-save enabled flag back onto the graph.
+  let pauseGen = 0;
+
+  function message(e) {
+    return String(e).replace(/^Error: /, '');
+  }
+
+  function writeRepo(path, fn) {
+    const prev = repoWrites.get(path) ?? Promise.resolve();
+    const run = prev.then(fn, fn);
+    const settled = run.then(
+      () => {},
+      () => {},
+    );
+    repoWrites.set(path, settled);
+    return run;
+  }
+
+  function visibilityOf(role) {
+    if (role === 'public') return 'public';
+    if (role === 'personal' || role === 'organization') return 'private';
+    return undefined;
+  }
+
+  async function loadDestinations(repos) {
+    const gen = ++loadGen;
+    const seenPause = pauseGen;
+    const paths = (repos ?? []).map((r) => r.path).filter(Boolean);
+    if (!paths.length) {
+      destNodes = [];
+      topoError = '';
+      return;
+    }
+    let rows = [];
+    try {
+      rows = (await api.targetsListAll(paths)) ?? [];
+      if (gen !== loadGen || seenPause !== pauseGen) return;
+      topoError = '';
+    } catch (e) {
+      if (gen !== loadGen) return;
+      topoError = message(e);
+      return;
+    }
+    const prevById = new Map(destNodes.map((n) => [n.id, n]));
+    const repoPaths = new Set(rows.map((row) => row.repo_path).filter(Boolean));
+    const multi = repoPaths.size > 1;
+    destNodes = rows
+      .filter((row) => row?.repo_key && row.target?.id)
+      .map((row) => {
+        const t = row.target;
+        const id = encodeDestinationId(row.repo_key, t.id);
+        const prev = prevById.get(id);
+        const label = (t.label || t.remote_name || 'Destination').trim() || 'Destination';
+        const repo = (repos ?? []).find((r) => r.path === row.repo_path);
+        const who = repo?.name || name(row.repo_path);
+        return {
+          id,
+          label: multi && who ? `${who} · ${label}` : label,
+          paused: inflightPause.has(id) ? !!prev?.paused : t.enabled === false,
+          visibility: visibilityOf(t.role),
+          ahead: prev?.ahead,
+          behind: prev?.behind,
+          repoPath: row.repo_path,
+          repoKey: row.repo_key,
+          targetId: t.id,
+          remote: t.remote_name || '',
+        };
+      });
+    void fillSync(gen, repos, destNodes);
+  }
+
+  async function fillSync(gen, repos, nodes) {
+    const branchByPath = new Map();
+    for (const r of repos ?? []) {
+      const branch = String(r?.branch || '').trim();
+      if (r?.path && branch) branchByPath.set(r.path, branch);
+    }
+    const missing = [...new Set(nodes.map((n) => n.repoPath).filter((p) => p && !branchByPath.get(p)))];
+    await Promise.all(
+      missing.map(async (path) => {
+        try {
+          const work = await api.repoWork(path);
+          const branch = String(work?.branch || '').trim();
+          if (branch) branchByPath.set(path, branch);
+        } catch {
+          // Sync counts are best-effort. The node still draws.
+        }
+      }),
+    );
+    if (gen !== loadGen) return;
+    await Promise.all(
+      nodes.map(async (node) => {
+        const remote = String(node.remote || '').trim();
+        const branch = branchByPath.get(node.repoPath) || '';
+        if (!remote || !branch) return;
+        try {
+          const sync = await api.repoWorkRemote(node.repoPath, remote, branch);
+          if (gen !== loadGen) return;
+          const ahead = Number(sync?.ahead) || 0;
+          const behind = Number(sync?.behind) || 0;
+          destNodes = destNodes.map((n) => (n.id === node.id ? { ...n, ahead, behind } : n));
+        } catch {
+          // A missing remote tip should not blank the graph.
+        }
+      }),
+    );
+  }
 
   async function refresh() {
     try {
@@ -30,8 +152,9 @@
         sessionStorage.setItem('setup-shown', '1');
         wizard = true;
       }
+      await loadDestinations(repoList);
     } catch (e) {
-      error = String(e);
+      error = message(e);
     }
   }
   onMount(refresh);
@@ -45,7 +168,6 @@
     report ? report.items.filter((i) => i.state === 'attention').length + installed.filter((a) => a.status !== 'current').length + report.repos.filter((r) => !r.connected).length : 0,
   );
   const name = (p) => p.split(/[\\/]/).filter(Boolean).pop();
-  const shownRepos = $derived(repoList.length ? repoList : []);
 
   async function fixAll() {
     const snap = report;
@@ -80,7 +202,7 @@
         await api.uninstallStep(i.id);
       }
     } catch (e) {
-      error = String(e);
+      error = message(e);
     }
     await refresh();
   }
@@ -105,6 +227,70 @@
     } finally {
       syncing = false;
     }
+  }
+
+  async function togglePause(id) {
+    const node = destNodes.find((d) => d.id === id);
+    if (!node?.repoPath || !node.targetId) return;
+    const path = node.repoPath;
+    const targetId = node.targetId;
+    const nextPaused = !node.paused;
+    inflightPause.add(id);
+    destNodes = destNodes.map((n) => (n.id === id ? { ...n, paused: nextPaused } : n));
+    try {
+      await writeRepo(path, async () => {
+        const doc = await api.targetsGet(path);
+        const targets = doc?.targets ?? [];
+        if (!targets.some((t) => t.id === targetId)) throw new Error('This destination is not in the repo.');
+        const next = {
+          ...(doc ?? {}),
+          repo_path: path,
+          targets: targets.map((t) => (t.id === targetId ? { ...t, enabled: !nextPaused } : t)),
+        };
+        await api.targetsSave(path, next);
+      });
+      pauseGen += 1;
+      destNodes = destNodes.map((n) => (n.id === id ? { ...n, paused: nextPaused } : n));
+    } catch (e) {
+      destNodes = destNodes.map((n) => (n.id === id && n.paused === nextPaused ? { ...n, paused: !nextPaused } : n));
+      error = message(e);
+    } finally {
+      inflightPause.delete(id);
+    }
+  }
+
+  function startAdd() {
+    if (!repoList.length) return;
+    if (repoList.length === 1) openAdd(repoList[0]);
+    else picking = true;
+  }
+
+  async function openAdd(repo) {
+    picking = false;
+    try {
+      const doc = await api.targetsGet(repo.path);
+      addRepo = repo;
+      addExisting = doc?.targets ?? [];
+      addOpen = true;
+    } catch (e) {
+      error = message(e);
+    }
+  }
+
+  async function saveAdded(created) {
+    const repo = addRepo;
+    if (!repo?.path) throw new Error('Pick a repo first.');
+    await writeRepo(repo.path, async () => {
+      const fresh = await api.targetsGet(repo.path);
+      const next = {
+        ...(fresh ?? {}),
+        repo_path: repo.path,
+        default_target: fresh?.default_target ?? null,
+        targets: [...(fresh?.targets ?? []), ...created],
+      };
+      await api.targetsSave(repo.path, next);
+    });
+    await loadDestinations(repoList);
   }
 </script>
 
@@ -165,47 +351,6 @@
     </section>
   {/if}
 
-  <div class="home-split">
-    <section class="sheet agents-pane">
-      <div class="sheet-head">
-        <div class="sheet-title"><Icon name="sparkle" size={14} /> Agents</div>
-        <div class="sheet-head-actions">
-          <span class="muted-2 small">{installed.length}/{report.adapters.length}</span>
-          <ActionButton run={syncAll} label={syncing ? 'Syncing' : 'Sync'} icon="refresh" size="sm" kind="ghost" doneLabel="Synced" onresult={refresh} disabled={syncing} />
-        </div>
-      </div>
-      <ul class="agent-rows compact agents-fill">
-        {#each report.adapters as a}
-          {@const st = AGENT[a.status]}
-          <li class="agent-row" class:dim={a.status === 'not_detected'}>
-            <span class="agent-glyph"><Icon name={'agent-' + a.id} size={13} /></span>
-            <span class="agent-name">{a.name}</span>
-            <span class="info-slot">
-              {#if a.manual.length}<Info align="right"><p><strong>{a.name}</strong></p>{#each a.manual as m}<p>{m}</p>{/each}</Info>{/if}
-            </span>
-            <span class="pill {st[0]}">{st[1]}</span>
-            <span class="agent-action">
-              {#if a.status === 'current'}
-                <ActionButton run={() => api.removeAdapter(a.id)} label="Remove" kind="ghost" size="sm" doneLabel="Ok" onresult={refresh} />
-              {:else if a.status === 'not_detected'}
-                <span class="muted-2 small">Auto</span>
-              {:else}
-                <ActionButton run={() => api.jobStartApply(a.id)} label="Apply" size="sm" doneLabel="Queued" onresult={refresh} go={true} />
-              {/if}
-            </span>
-          </li>
-        {:else}
-          <li class="agent-row muted">None found</li>
-        {/each}
-      </ul>
-      <p class="muted-2 small footnote agents-note">Sync repairs hooks, PATH, login, and every agent rule file, then re-checks shells.</p>
-    </section>
-
-    <div class="sheet runs-pane">
-      <RunsPanel {onnavigate} />
-    </div>
-  </div>
-
   {#if report.repos.some((r) => !r.connected)}
     <section class="sheet" style="background:var(--accent-softer)">
       <div class="sheet-head">
@@ -225,29 +370,136 @@
     </section>
   {/if}
 
-  <section class="sheet home-repos">
+  <section class="sheet topo-stage" aria-label="Destinations">
     <div class="sheet-head">
-      <div class="sheet-title"><Icon name="layers" size={14} /> Repos</div>
-      <button type="button" class="btn ghost sm" onclick={() => onnavigate?.('repos')}>All <span class="go"><Icon name="chevron-right" size={12} /></span></button>
-    </div>
-    {#if !shownRepos.length}
-      <p class="muted small">No repos yet. Commit somewhere or open Repos to find them.</p>
-    {:else}
-      <div class="repo-grid">
-        {#each shownRepos as r}
-          <button type="button" class="repo-card" onclick={() => (onopenrepo ? onopenrepo(r.path, 'work') : onnavigate?.('repos', { repo: r.path, tab: 'work' }))}>
-            <RepoAvatar login={r.avatar_login || ''} owner={r.owner || 'unknown'} size={32} />
-            <span class="repo-card-body">
-              <strong>{r.name || name(r.path)}</strong>
-              <span class="muted-2 small">{r.slug || 'local'}{#if r.owner === 'organization'} · org{:else if r.owner === 'personal'} · you{/if}</span>
-              <span class="muted small">{r.branch || '—'} · {r.last_push ? relativeTime(r.last_push) : r.last_sync ? relativeTime(r.last_sync) : '—'}</span>
-            </span>
-            <span class="go"><Icon name="chevron-right" size={14} /></span>
-          </button>
-        {/each}
+      <div class="sheet-title"><Icon name="layers" size={14} /> Destinations</div>
+      <div class="sheet-head-actions">
+        {#if topoError}<span class="bad small">{topoError}</span>{/if}
+        <button type="button" class="btn ghost sm" onclick={startAdd} disabled={!repoList.length}>
+          <Icon name="plus" size={13} /> Add
+        </button>
       </div>
+    </div>
+    {#if !repoList.length}
+      <p class="muted small topo-hint">No repos yet. Commit somewhere or open Repos to find them.</p>
+    {:else if !destNodes.length}
+      <p class="muted small topo-hint">No destinations yet. Add a git remote to publish to.</p>
     {/if}
+    <div class="topo-canvas">
+      <TopologyGraph
+        destinations={destNodes}
+        onlocalclick={() => onnavigate('local')}
+        onnodeclick={(id) => onnavigate('destination/' + id)}
+        onedgepause={togglePause}
+      />
+    </div>
   </section>
+
+  <div class="sheet runs-strip">
+    <RunsPanel {onnavigate} />
+  </div>
+
+  <details class="sheet agents-fold">
+    <summary class="sheet-head">
+      <div class="sheet-title"><Icon name="sparkle" size={14} /> Agents</div>
+      <span class="muted-2 small">{installed.length}/{report.adapters.length}</span>
+    </summary>
+    <div class="agents-sync">
+      <ActionButton run={syncAll} label={syncing ? 'Syncing' : 'Sync'} icon="refresh" size="sm" kind="ghost" doneLabel="Synced" onresult={refresh} disabled={syncing} />
+    </div>
+    <ul class="agent-rows compact">
+      {#each report.adapters as a}
+        {@const st = AGENT[a.status]}
+        <li class="agent-row" class:dim={a.status === 'not_detected'}>
+          <span class="agent-glyph"><Icon name={'agent-' + a.id} size={13} /></span>
+          <span class="agent-name">{a.name}</span>
+          <span class="info-slot">
+            {#if a.manual.length}<Info align="right"><p><strong>{a.name}</strong></p>{#each a.manual as m}<p>{m}</p>{/each}</Info>{/if}
+          </span>
+          <span class="pill {st[0]}">{st[1]}</span>
+          <span class="agent-action">
+            {#if a.status === 'current'}
+              <ActionButton run={() => api.removeAdapter(a.id)} label="Remove" kind="ghost" size="sm" doneLabel="Ok" onresult={refresh} />
+            {:else if a.status === 'not_detected'}
+              <span class="muted-2 small">Auto</span>
+            {:else}
+              <ActionButton run={() => api.jobStartApply(a.id)} label="Apply" size="sm" doneLabel="Queued" onresult={refresh} go={true} />
+            {/if}
+          </span>
+        </li>
+      {:else}
+        <li class="agent-row muted">None found</li>
+      {/each}
+    </ul>
+    <p class="muted-2 small footnote">Sync repairs hooks, PATH, login, and every agent rule file, then re-checks shells.</p>
+  </details>
 
   {#if checkedAt}<p class="checked muted-2">Checked {checkedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · <button class="link-text" onclick={() => (wizard = true)}>Setup again</button></p>{/if}
 {/if}
+
+<Modal open={picking} onclose={() => (picking = false)} title="Which repo?">
+  <p class="muted small">Pick a repo, then choose remotes that are not destinations yet.</p>
+  <div class="pick-list">
+    {#each repoList as r (r.path)}
+      <button type="button" class="pick-row" onclick={() => openAdd(r)}>
+        <strong>{r.name || name(r.path)}</strong>
+        <span class="muted-2 small">{r.slug || r.path}</span>
+      </button>
+    {/each}
+  </div>
+</Modal>
+
+<AddDestination
+  open={addOpen}
+  repo={addRepo}
+  existingTargets={addExisting}
+  onsave={saveAdded}
+  onclose={() => (addOpen = false)}
+/>
+
+<style>
+  .topo-stage { display: flex; flex-direction: column; gap: 6px; }
+  .topo-hint { margin: 0; }
+  .topo-canvas {
+    position: relative;
+    height: clamp(420px, 58vh, 640px);
+    min-height: 420px;
+  }
+  .runs-strip {
+    padding: 0;
+    overflow: hidden;
+    max-height: 220px;
+    margin-bottom: 8px;
+  }
+  .runs-strip :global(.runs-panel) {
+    display: flex;
+    flex-direction: column;
+    max-height: 220px;
+    min-height: 0;
+    padding: 10px 12px;
+  }
+  .runs-strip :global(.runs-scroll) {
+    min-height: 0;
+    overflow-y: auto;
+  }
+  .agents-fold > summary { cursor: pointer; list-style: none; }
+  .agents-fold > summary::-webkit-details-marker { display: none; }
+  .agents-sync { display: flex; justify-content: flex-end; margin-bottom: 6px; }
+  .pick-list { display: flex; flex-direction: column; gap: 2px; margin-top: 0.75rem; }
+  .pick-row {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    width: 100%;
+    padding: 10px 6px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+  }
+  .pick-row:hover { background: var(--accent-softer); }
+  .pick-row strong { font-size: 12.5px; }
+</style>
