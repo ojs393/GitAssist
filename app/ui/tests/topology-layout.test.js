@@ -29,3 +29,12 @@ test('short viewport compresses rows clear of local', () => {
   const localTop = L.local.y - L.local.r;
   assert.ok(lastBottom <= localTop - 8, `lastBottom=${lastBottom} localTop=${localTop}`);
 });
+
+test('very short viewport keeps destinations above local', () => {
+  const dests = Array.from({ length: 12 }, (_, i) => ({ id: String(i), label: `r${i}`, paused: false }));
+  const L = layoutTopology({ width: 400, height: 300, destinations: dests });
+  const lastBottom = Math.max(...L.nodes.map((n) => n.y + n.r));
+  const localTop = L.local.y - L.local.r;
+  assert.ok(lastBottom <= localTop - 8, `lastBottom=${lastBottom} localTop=${localTop}`);
+  assert.ok(L.local.y + L.local.r <= 300 + 0.01);
+});

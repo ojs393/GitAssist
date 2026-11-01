@@ -298,19 +298,8 @@
     <div class="hero-actions">
       {#if !report.turned_on}
         <button type="button" class="btn primary sm" onclick={() => (wizard = true)}><Icon name="rocket" size={13} /> Set up <span class="go"><Icon name="chevron-right" size={13} /></span></button>
-      {:else}
-        <button
-          type="button"
-          class="btn sm {config.enabled ? 'ghost' : 'primary'}"
-          onclick={() => (config.enabled = !config.enabled)}
-          title={config.enabled ? 'Pause checking' : 'Turn checking back on'}
-        >
-          <Icon name={config.enabled ? 'pause' : 'play'} size={13} />
-          {config.enabled ? 'Pause' : 'Start'}
-        </button>
-        {#if problems && config.enabled}
-          <ActionButton run={fixAll} label="Fix all" icon="wrench" size="sm" doneLabel="Queued" onresult={refresh} go={true} />
-        {/if}
+      {:else if problems && config.enabled}
+        <ActionButton run={fixAll} label="Fix all" icon="wrench" size="sm" doneLabel="Queued" onresult={refresh} go={true} />
       {/if}
       <button type="button" class="icon-btn" title="Check again" aria-label="Check again" onclick={refresh}><Icon name="refresh" size={14} /></button>
     </div>
