@@ -1,27 +1,3 @@
-<script module>
-  // One targets file per repo. Saves from different destination pages must not write it at once.
-  const repoSaves = new Map();
-
-  function enqueueRepoSave(key, fn) {
-    const prev = repoSaves.get(key) ?? Promise.resolve();
-    const run = prev.then(() => fn(), () => fn());
-    const settled = run.then(() => {}, () => {});
-    repoSaves.set(key, settled);
-    settled.finally(() => {
-      if (repoSaves.get(key) === settled) repoSaves.delete(key);
-    });
-    return run;
-  }
-
-  async function waitForRepoSave(key) {
-    for (;;) {
-      const pending = repoSaves.get(key);
-      if (!pending) return;
-      await pending;
-    }
-  }
-</script>
-
 <script>
   import { onDestroy } from 'svelte';
   import { api } from '../api.js';
@@ -29,6 +5,7 @@
   import PageHead from '../ui/PageHead.svelte';
   import ActionButton from '../ui/ActionButton.svelte';
   import TargetEditor from './TargetEditor.svelte';
+  import { enqueueTargetsWrite, waitForTargetsWrite } from '../topology/targetsWriteQueue.js';
 
   let { repoKey, targetId, onback } = $props();
 
@@ -89,7 +66,7 @@
     sync = null;
     syncError = '';
     try {
-      await waitForRepoSave(key);
+      await waitForTargetsWrite(key);
       if (!alive || my !== ticket) return;
       const docIn = await api.targetsGetByKey(key);
       if (!alive || my !== ticket) return;
@@ -184,7 +161,9 @@
     saving = true;
     error = '';
     try {
-      const notes = await enqueueRepoSave(key, () => api.targetsSave(next.repo_path, next));
+      const notes = await enqueueTargetsWrite([key, next.repo_path], () =>
+        api.targetsSave(next.repo_path, next),
+      );
       if (pageLeft(myPage, key, id)) throw new Error('This destination changed before the save finished.');
       const fresh = await api.targetsGetByKey(key);
       if (pageLeft(myPage, key, id)) throw new Error('This destination changed before the save finished.');

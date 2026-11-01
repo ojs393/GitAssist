@@ -11,7 +11,7 @@
   import RepoAvatar from '../ui/RepoAvatar.svelte';
   import RepoDetail from './RepoDetail.svelte';
 
-  let { focusPath = null, focusTab = 'work', onclearFocus, globalConfig = $bindable(), tabs = [] } = $props();
+  let { focusPath = null, focusTab = 'work', onclearFocus, onnavigate, globalConfig = $bindable(), tabs = [] } = $props();
   let repos = $state(null);
   let error = $state('');
   let query = $state('');
@@ -70,6 +70,7 @@
     initialTab={detailTab}
     bind:globalConfig
     {tabs}
+    {onnavigate}
     onback={() => {
       selected = null;
       onclearFocus?.();

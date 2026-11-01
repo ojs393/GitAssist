@@ -11,6 +11,7 @@
   import TopologyGraph from '../topology/TopologyGraph.svelte';
   import AddDestination from '../topology/AddDestination.svelte';
   import { encodeDestinationId } from '../topology/destinationId.js';
+  import { enqueueTargetsWrite } from '../topology/targetsWriteQueue.js';
 
   let { config = $bindable(), onnavigate, onopenrepo } = $props();
   let report = $state(null);
@@ -26,9 +27,6 @@
   let addRepo = $state(null);
   let addExisting = $state([]);
 
-  // Pause and import both write one targets file per repo. Queue them so two
-  // clicks cannot save a stale copy over each other.
-  const repoWrites = new Map();
   const inflightPause = new Set();
   let loadGen = 0;
   // Bumped after a pause save so a targets list that started earlier cannot
@@ -37,17 +35,6 @@
 
   function message(e) {
     return String(e).replace(/^Error: /, '');
-  }
-
-  function writeRepo(path, fn) {
-    const prev = repoWrites.get(path) ?? Promise.resolve();
-    const run = prev.then(fn, fn);
-    const settled = run.then(
-      () => {},
-      () => {},
-    );
-    repoWrites.set(path, settled);
-    return run;
   }
 
   function visibilityOf(role) {
@@ -238,7 +225,7 @@
     inflightPause.add(id);
     destNodes = destNodes.map((n) => (n.id === id ? { ...n, paused: nextPaused } : n));
     try {
-      await writeRepo(path, async () => {
+      await enqueueTargetsWrite([path, node.repoKey], async () => {
         const doc = await api.targetsGet(path);
         const targets = doc?.targets ?? [];
         if (!targets.some((t) => t.id === targetId)) throw new Error('This destination is not in the repo.');
@@ -280,7 +267,8 @@
   async function saveAdded(created) {
     const repo = addRepo;
     if (!repo?.path) throw new Error('Pick a repo first.');
-    await writeRepo(repo.path, async () => {
+    const knownKey = destNodes.find((n) => n.repoPath === repo.path)?.repoKey;
+    await enqueueTargetsWrite([repo.path, knownKey], async () => {
       const fresh = await api.targetsGet(repo.path);
       const next = {
         ...(fresh ?? {}),

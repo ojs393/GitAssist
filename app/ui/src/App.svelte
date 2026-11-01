@@ -224,6 +224,7 @@
           {focusTab}
           bind:globalConfig={config}
           {tabs}
+          onnavigate={go}
           onclearFocus={() => (focusPath = null)}
         />
       {:else if section === 'activity'}
