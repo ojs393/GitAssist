@@ -5,7 +5,10 @@
   import PageHead from '../ui/PageHead.svelte';
   import ActionButton from '../ui/ActionButton.svelte';
   import TargetEditor from './TargetEditor.svelte';
-  import { enqueueTargetsWrite, waitForTargetsWrite } from '../topology/targetsWriteQueue.js';
+  import {
+    enqueueTargetsWriteForRepo,
+    waitForTargetsWriteForRepo,
+  } from '../topology/targetsWriteQueue.js';
 
   let { repoKey, targetId, onback } = $props();
 
@@ -66,7 +69,7 @@
     sync = null;
     syncError = '';
     try {
-      await waitForTargetsWrite(key);
+      await waitForTargetsWriteForRepo({ key, path: doc?.repo_path });
       if (!alive || my !== ticket) return;
       const docIn = await api.targetsGetByKey(key);
       if (!alive || my !== ticket) return;
@@ -161,7 +164,7 @@
     saving = true;
     error = '';
     try {
-      const notes = await enqueueTargetsWrite([key, next.repo_path], () =>
+      const notes = await enqueueTargetsWriteForRepo({ key, path: next.repo_path }, () =>
         api.targetsSave(next.repo_path, next),
       );
       if (pageLeft(myPage, key, id)) throw new Error('This destination changed before the save finished.');
@@ -176,6 +179,39 @@
       defaultTarget = fresh.default_target ?? null;
       saveNote = notes?.length ? notes.join('; ') : 'Saved.';
       return true;
+    } catch (e) {
+      if (!pageLeft(myPage, key, id)) error = message(e);
+      throw e;
+    } finally {
+      if (mySave === saveTicket) saving = false;
+    }
+  }
+
+  async function removeDestination() {
+    const myPage = ticket;
+    const key = repoKey;
+    const id = targetId;
+    if (!doc || !target) throw new Error('Nothing to remove.');
+    if (saving) throw new Error('Save already in progress.');
+    const label = (target.label || '').trim() || 'this destination';
+    if (!confirm(`Remove destination “${label}”? This cannot be undone.`)) {
+      throw new Error('Cancelled');
+    }
+    const path = doc.repo_path;
+    const saved = (doc.targets ?? []).find((t) => t.id === id);
+    const next = structuredClone($state.snapshot(doc));
+    next.targets = (next.targets ?? []).filter((t) => t.id !== id);
+    const labels = new Set([saved?.label, target.label, label].filter(Boolean));
+    if (next.default_target && labels.has(next.default_target)) {
+      next.default_target = null;
+    }
+    const mySave = ++saveTicket;
+    saving = true;
+    error = '';
+    try {
+      await enqueueTargetsWriteForRepo({ key, path }, () => api.targetsSave(path, next));
+      if (pageLeft(myPage, key, id)) return;
+      onback?.();
     } catch (e) {
       if (!pageLeft(myPage, key, id)) error = message(e);
       throw e;
@@ -275,6 +311,15 @@
       />
       <ActionButton run={refreshSync} label="Sync" icon="refresh" kind="ghost" size="sm" doneLabel="Ok" disabled={saving} />
       <ActionButton run={persist} label="Save" icon="check" kind="primary" size="sm" doneLabel="Saved" disabled={saving} />
+      <ActionButton
+        run={removeDestination}
+        label="Remove"
+        icon="trash"
+        kind="danger"
+        size="sm"
+        doneLabel="Removed"
+        disabled={saving}
+      />
       {#if saveNote}<span class="save-pill ok"><Icon name="check" size={13} />{saveNote}</span>{/if}
       <span class="grow"></span>
       <button type="button" class="btn ghost sm" onclick={() => onback?.()}>

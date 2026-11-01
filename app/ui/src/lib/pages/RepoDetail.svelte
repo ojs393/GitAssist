@@ -7,7 +7,7 @@
   import TopologyGraph from '../topology/TopologyGraph.svelte';
   import AddDestination from '../topology/AddDestination.svelte';
   import { encodeDestinationId } from '../topology/destinationId.js';
-  import { enqueueTargetsWrite } from '../topology/targetsWriteQueue.js';
+  import { enqueueTargetsWriteForRepo } from '../topology/targetsWriteQueue.js';
 
   let { repo, onback, onnavigate, initialTab = 'work', globalConfig = $bindable(), tabs = [] } = $props();
 
@@ -175,7 +175,7 @@
 
   async function importDestinations(created) {
     const path = repo.path;
-    await enqueueTargetsWrite([path, repoKey], async () => {
+    await enqueueTargetsWriteForRepo({ path, key: repoKey }, async () => {
       const fresh = await api.targetsGet(path);
       const next = {
         ...(fresh ?? {}),
@@ -204,7 +204,7 @@
     inflightPause.add(id);
     destNodes = destNodes.map((n) => (n.id === id ? { ...n, paused: nextPaused } : n));
     try {
-      await enqueueTargetsWrite([path, repoKey || node.repoKey], async () => {
+      await enqueueTargetsWriteForRepo({ path, key: repoKey || node.repoKey }, async () => {
         const doc = await api.targetsGet(path);
         const list = doc?.targets ?? [];
         if (!list.some((t) => t.id === targetId)) throw new Error('This destination is not in the repo.');

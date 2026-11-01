@@ -11,7 +11,7 @@
   import TopologyGraph from '../topology/TopologyGraph.svelte';
   import AddDestination from '../topology/AddDestination.svelte';
   import { encodeDestinationId } from '../topology/destinationId.js';
-  import { enqueueTargetsWrite } from '../topology/targetsWriteQueue.js';
+  import { enqueueTargetsWriteForRepo } from '../topology/targetsWriteQueue.js';
 
   let { config = $bindable(), onnavigate, onopenrepo } = $props();
   let report = $state(null);
@@ -225,7 +225,7 @@
     inflightPause.add(id);
     destNodes = destNodes.map((n) => (n.id === id ? { ...n, paused: nextPaused } : n));
     try {
-      await enqueueTargetsWrite([path, node.repoKey], async () => {
+      await enqueueTargetsWriteForRepo({ path, key: node.repoKey }, async () => {
         const doc = await api.targetsGet(path);
         const targets = doc?.targets ?? [];
         if (!targets.some((t) => t.id === targetId)) throw new Error('This destination is not in the repo.');
@@ -268,7 +268,7 @@
     const repo = addRepo;
     if (!repo?.path) throw new Error('Pick a repo first.');
     const knownKey = destNodes.find((n) => n.repoPath === repo.path)?.repoKey;
-    await enqueueTargetsWrite([repo.path, knownKey], async () => {
+    await enqueueTargetsWriteForRepo({ path: repo.path, key: knownKey }, async () => {
       const fresh = await api.targetsGet(repo.path);
       const next = {
         ...(fresh ?? {}),
