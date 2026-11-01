@@ -19,3 +19,13 @@ test('many destinations wrap to second row', () => {
   const ys = new Set(L.nodes.map((n) => Math.round(n.y)));
   assert.ok(ys.size >= 2);
 });
+
+test('short viewport compresses rows clear of local', () => {
+  const dests = Array.from({ length: 12 }, (_, i) => ({ id: String(i), label: `r${i}`, paused: false }));
+  const L = layoutTopology({ width: 400, height: 420, destinations: dests });
+  const ys = new Set(L.nodes.map((n) => Math.round(n.y)));
+  assert.ok(ys.size >= 2);
+  const lastBottom = Math.max(...L.nodes.map((n) => n.y + n.r));
+  const localTop = L.local.y - L.local.r;
+  assert.ok(lastBottom <= localTop - 8, `lastBottom=${lastBottom} localTop=${localTop}`);
+});

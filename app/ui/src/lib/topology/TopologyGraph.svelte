@@ -17,39 +17,24 @@
   let height = $state(0);
   /** @type {{ id: string, x: number, y: number } | null} */
   let popup = $state(null);
+  /** @type {HTMLElement | SVGElement | null} */
+  let popupReturnFocus = null;
 
   const layout = $derived(layoutTopology({ width, height, destinations }));
   const popupDest = $derived(popup ? destinations.find((d) => d.id === popup.id) : null);
 
-  $effect(() => {
-    const el = root;
-    if (!el) return;
-    let prevW = 0;
-    let prevH = 0;
-    // Don't read width/height here — that resubscribes the effect and fights the observer.
-    const apply = (w, h) => {
-      const nextW = Math.round(w);
-      const nextH = Math.round(h);
-      if (nextW === prevW && nextH === prevH) return;
-      const resized = prevW !== 0 && (Math.abs(nextW - prevW) > 1 || Math.abs(nextH - prevH) > 1);
-      prevW = nextW;
-      prevH = nextH;
-      width = nextW;
-      height = nextH;
-      if (resized) popup = null;
-    };
-    apply(el.clientWidth, el.clientHeight);
-    const ro = new ResizeObserver((entries) => {
-      const rect = entries[0]?.contentRect;
-      if (rect) apply(rect.width, rect.height);
+  function closePopup() {
+    popup = null;
+    const el = popupReturnFocus;
+    popupReturnFocus = null;
+    queueMicrotask(() => {
+      try {
+        el?.focus?.({ preventScroll: true });
+      } catch {
+        // Element may have been removed on resize/reflow.
+      }
     });
-    ro.observe(el);
-    return () => ro.disconnect();
-  });
-
-  $effect(() => {
-    if (popup && !destinations.some((d) => d.id === popup.id)) popup = null;
-  });
+  }
 
   function clamp(n, lo, hi) {
     if (lo > hi) return (lo + hi) / 2;
@@ -93,6 +78,8 @@
     const rawX = pointer ? event.clientX - rect.left : (layout.local.x + (node?.x ?? layout.local.x)) / 2;
     const rawY = pointer ? event.clientY - rect.top : (layout.local.y + (node?.y ?? layout.local.y)) / 2;
     const half = Math.min(150, rect.width / 2);
+    const from = event?.currentTarget;
+    popupReturnFocus = from && typeof from.focus === 'function' ? from : null;
     popup = {
       id: edge.id,
       x: clamp(rawX, half, rect.width - half),
@@ -103,15 +90,45 @@
   function onEdgeKey(event, edge, node) {
     if (event.key !== 'Enter' && event.key !== ' ') return;
     event.preventDefault();
-    openEdge(edge, node, null);
+    openEdge(edge, node, event);
   }
 
   function confirmPause() {
     if (!popup) return;
     const id = popup.id;
     onedgepause?.(id);
-    popup = null;
+    closePopup();
   }
+
+  $effect(() => {
+    const el = root;
+    if (!el) return;
+    let prevW = 0;
+    let prevH = 0;
+    // Don't read width/height here — that resubscribes the effect and fights the observer.
+    const apply = (w, h) => {
+      const nextW = Math.round(w);
+      const nextH = Math.round(h);
+      if (nextW === prevW && nextH === prevH) return;
+      const resized = prevW !== 0 && (Math.abs(nextW - prevW) > 1 || Math.abs(nextH - prevH) > 1);
+      prevW = nextW;
+      prevH = nextH;
+      width = nextW;
+      height = nextH;
+      if (resized) closePopup();
+    };
+    apply(el.clientWidth, el.clientHeight);
+    const ro = new ResizeObserver((entries) => {
+      const rect = entries[0]?.contentRect;
+      if (rect) apply(rect.width, rect.height);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  });
+
+  $effect(() => {
+    if (popup && !destinations.some((d) => d.id === popup.id)) closePopup();
+  });
 </script>
 
 <div class="topology" bind:this={root} role="group" aria-label="Destinations">
@@ -199,6 +216,6 @@
     paused={!!popupDest?.paused}
     label={popupDest?.label ?? ''}
     onconfirm={confirmPause}
-    onclose={() => (popup = null)}
+    onclose={closePopup}
   />
 </div>

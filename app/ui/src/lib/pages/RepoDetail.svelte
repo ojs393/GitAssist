@@ -58,7 +58,7 @@
         return {
           id,
           label: (t.label || t.remote_name || 'Destination').trim() || 'Destination',
-          paused: inflightPause.has(id) ? !!prev?.paused : t.enabled === false,
+          paused: inflightPause.has(id) ? !!prev?.paused : !t.enabled,
           visibility: visibilityOf(t.role),
           ahead: prev?.ahead,
           behind: prev?.behind,
@@ -284,7 +284,11 @@
 
   <section class="sheet topo-stage" aria-label="Destinations">
     {#if !destNodes.length}
-      <p class="muted small topo-hint">No destinations yet. Add a git remote to publish to.</p>
+      <p class="muted small topo-hint">
+        No destinations yet.
+        <button type="button" class="link-text" onclick={openImport}>Add</button>
+        from a git remote to publish to.
+      </p>
     {/if}
     <div class="topo-canvas">
       <TopologyGraph

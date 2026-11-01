@@ -211,7 +211,7 @@
           <DestinationDetail repoKey={route.repoKey} targetId={route.targetId} onback={() => go('overview')} />
         {/key}
       {:else if section === 'overview'}
-        <Overview bind:config onnavigate={go} onopenrepo={openRepo} />
+        <Overview bind:config onnavigate={go} />
       {:else if section === 'ignore'}
         <Ignore bind:config />
       {:else if section === 'settings' || section === 'defaults'}
@@ -251,7 +251,7 @@
           />
         {/key}
       {:else}
-        <Overview bind:config onnavigate={go} onopenrepo={openRepo} />
+        <Overview bind:config onnavigate={go} />
       {/if}
     {/if}
   </main>

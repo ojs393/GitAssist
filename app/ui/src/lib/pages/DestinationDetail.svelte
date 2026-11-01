@@ -69,7 +69,8 @@
     sync = null;
     syncError = '';
     try {
-      await waitForTargetsWriteForRepo({ key, path: doc?.repo_path });
+      // Wait on key only — reading `doc` here would re-fire the route $effect.
+      await waitForTargetsWriteForRepo({ key });
       if (!alive || my !== ticket) return;
       const docIn = await api.targetsGetByKey(key);
       if (!alive || my !== ticket) return;

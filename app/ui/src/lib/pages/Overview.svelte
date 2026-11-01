@@ -13,7 +13,7 @@
   import { encodeDestinationId } from '../topology/destinationId.js';
   import { enqueueTargetsWriteForRepo } from '../topology/targetsWriteQueue.js';
 
-  let { config = $bindable(), onnavigate, onopenrepo } = $props();
+  let { config = $bindable(), onnavigate } = $props();
   let report = $state(null);
   let repoList = $state([]);
   let destNodes = $state([]);
@@ -77,7 +77,7 @@
         return {
           id,
           label: multi && who ? `${who} · ${label}` : label,
-          paused: inflightPause.has(id) ? !!prev?.paused : t.enabled === false,
+          paused: inflightPause.has(id) ? !!prev?.paused : !t.enabled,
           visibility: visibilityOf(t.role),
           ahead: prev?.ahead,
           behind: prev?.behind,
@@ -371,7 +371,11 @@
     {#if !repoList.length}
       <p class="muted small topo-hint">No repos yet. Commit somewhere or open Repos to find them.</p>
     {:else if !destNodes.length}
-      <p class="muted small topo-hint">No destinations yet. Add a git remote to publish to.</p>
+      <p class="muted small topo-hint">
+        No destinations yet.
+        <button type="button" class="link-text" onclick={startAdd}>Add</button>
+        from a git remote to publish to.
+      </p>
     {/if}
     <div class="topo-canvas">
       <TopologyGraph
